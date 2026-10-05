@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wiki Decide"
+  short_description: "Сравнение вариантов и запись решений проекта"
+  default_prompt: "Используй $wiki-decide, чтобы сравнить альтернативы и оформить предложенное решение для текущего проекта."

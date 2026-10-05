@@ -1,0 +1,8 @@
+#!/usr/bin/env python3
+import sys
+
+from _core import main_affected
+
+
+if __name__ == "__main__":
+    raise SystemExit(main_affected(sys.argv[1:]))

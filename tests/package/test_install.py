@@ -1,0 +1,124 @@
+import json
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+class InstallTest(unittest.TestCase):
+    def setUp(self):
+        self.temp = tempfile.TemporaryDirectory()
+        self.target = Path(self.temp.name) / 'target'
+        self.target.mkdir()
+
+    def tearDown(self):
+        self.temp.cleanup()
+
+    def install(self, *args, kit=ROOT):
+        return subprocess.run([sys.executable, str(kit / 'scripts/install.py'), str(self.target), *args],
+                              capture_output=True, text=True)
+
+    def test_dry_run_does_not_write(self):
+        result = self.install('--init-wiki', '--dry-run')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(list(self.target.iterdir()), [])
+        self.assertIn('wiki-query/SKILL.md', result.stdout)
+
+    def test_init_and_all_commands_without_openspec(self):
+        result = self.install('--init-wiki', '--claude')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        skills = self.target / '.agents/skills'
+        self.assertEqual(len(list(skills.glob('wiki-*/SKILL.md'))), 8)
+        reference = Path('wiki-query/references/glossary.md')
+        self.assertEqual((skills / reference).read_bytes(), (ROOT / 'skills' / reference).read_bytes())
+        for skill in skills.iterdir():
+            alias = self.target / '.claude/skills' / skill.name
+            self.assertTrue(alias.is_symlink())
+            self.assertEqual(alias.resolve(), skill.resolve())
+        self.assertFalse((self.target / 'openspec').exists())
+        for command, args in [('lint', ['--dry-run']), ('status', []), ('find-orphans', []), ('affected', ['Каноническая'])]:
+            with self.subTest(command=command):
+                run = subprocess.run([sys.executable, str(self.target / 'bin/wiki' / command), *args],
+                                     cwd=self.target, capture_output=True, text=True)
+                self.assertEqual(run.returncode, 0, run.stdout + run.stderr)
+                if command == 'lint':
+                    self.assertIn('Предупреждения: 0', run.stdout)
+
+    def test_identical_reinstall_preserves_mtime(self):
+        self.assertEqual(self.install('--init-wiki', '--claude').returncode, 0)
+        before = {p: p.stat().st_mtime_ns for p in self.target.rglob('*') if p.is_file()}
+        result = self.install('--init-wiki', '--claude')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(before, {p: p.stat().st_mtime_ns for p in self.target.rglob('*') if p.is_file()})
+
+    def test_conflict_refuses_entire_install_and_preserves_project(self):
+        entry = self.target / 'bin/wiki/lint'
+        entry.parent.mkdir(parents=True)
+        entry.write_text('local tool\n')
+        (self.target / 'AGENTS.md').write_text('local policy\n')
+        result = self.install('--init-wiki')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(entry.read_text(), 'local tool\n')
+        self.assertFalse((self.target / '.agents').exists())
+        self.assertFalse((self.target / 'knowledge').exists())
+        self.assertEqual((self.target / 'AGENTS.md').read_text(), 'local policy\n')
+
+    def test_refuses_symlink_destination_without_writing_outside(self):
+        outside = Path(self.temp.name) / 'outside'
+        outside.mkdir()
+        (self.target / '.agents').symlink_to(outside, target_is_directory=True)
+        result = self.install('--init-wiki')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(list(outside.iterdir()), [])
+        self.assertFalse((self.target / 'knowledge').exists())
+
+    def test_install_into_existing_custom_corpus_keeps_config(self):
+        config = {'knowledge_root': 'docs/wiki', 'raw_root': 'docs/evidence', 'openspec_root': None}
+        (self.target / 'wiki.config.json').write_text(json.dumps(config))
+        result = self.install()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads((self.target / 'wiki.config.json').read_text()), config)
+        self.assertFalse((self.target / 'knowledge').exists())
+
+    def test_relocated_kit_has_no_source_checkout_dependency(self):
+        kit = Path(self.temp.name) / 'relocated kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        result = self.install('--init-wiki', kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        result = subprocess.run([sys.executable, str(self.target / 'bin/wiki/lint'), '--dry-run'],
+                                cwd=self.target, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_missing_glossary_reference_is_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete glossary kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        (kit / 'skills/wiki-query/references/glossary.md').unlink(missing_ok=True)
+        result = self.install('--init-wiki', kit=kit)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Неполный комплект', result.stderr)
+        self.assertEqual(list(self.target.iterdir()), [])
+
+
+    def test_incomplete_kit_is_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        for name in ('bin/wiki/_core.py', 'bin/wiki/lint',
+                     'skills/wiki-query/references/contract.md',
+                     'skills/wiki-query/references/profile.md',
+                     'templates/wiki/knowledge/SCHEMA.md'):
+            with self.subTest(resource=name):
+                path = kit / name
+                original = path.read_bytes()
+                path.unlink()
+                result = self.install('--init-wiki', kit=kit)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('Неполный комплект', result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [])
+                path.write_bytes(original)

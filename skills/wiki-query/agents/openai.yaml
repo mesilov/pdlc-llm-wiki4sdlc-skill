@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wiki Query"
+  short_description: "Ответы по знаниям проекта без изменения wiki"
+  default_prompt: "Используй $wiki-query, чтобы ответить на вопрос по существующим знаниям текущего проекта."

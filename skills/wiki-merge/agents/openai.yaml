@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wiki Merge"
+  short_description: "Объединение и разделение страниц без потери знания"
+  default_prompt: "Используй $wiki-merge, чтобы объединить пересекающиеся страницы с сохранением знания и ссылок."

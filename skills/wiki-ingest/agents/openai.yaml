@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wiki Ingest"
+  short_description: "Добавление источников и наблюдений в wiki"
+  default_prompt: "Используй $wiki-ingest, чтобы сохранить новый источник и связать его со знаниями текущего проекта."

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wiki Research"
+  short_description: "Исследования с источниками и явными неизвестными"
+  default_prompt: "Используй $wiki-research, чтобы исследовать вопрос и обновить wiki текущего проекта на основании источников."

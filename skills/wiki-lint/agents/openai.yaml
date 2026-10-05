@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wiki Lint"
+  short_description: "Проверка структуры, ссылок и терминологии wiki"
+  default_prompt: "Используй $wiki-lint, чтобы проверить структуру, ссылки и определения терминов в wiki текущего проекта."

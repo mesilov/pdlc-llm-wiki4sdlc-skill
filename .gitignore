@@ -6,3 +6,6 @@ Thumbs.db
 .env.*.local
 *.pem
 *.key
+
+__pycache__/
+*.py[cod]

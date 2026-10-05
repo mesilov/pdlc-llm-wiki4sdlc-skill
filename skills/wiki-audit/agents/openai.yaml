@@ -1,0 +1,4 @@
+interface:
+  display_name: "Wiki Audit"
+  short_description: "Проверка утверждений, evidence и свежести"
+  default_prompt: "Используй $wiki-audit, чтобы проверить поддержку и свежесть утверждений в wiki без изменения файлов."
