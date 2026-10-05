@@ -39,6 +39,8 @@ jobs:
 
   changesets:
     name: Validate changesets
+    # Version PRs consume their changesets; the Python matrix still tests them.
+    if: github.head_ref != 'changeset-release/main' && github.ref_name != 'changeset-release/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -46,6 +48,7 @@ jobs:
         uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4
@@ -57,4 +60,4 @@ jobs:
         run: npm ci
 
       - name: Validate release descriptions
-        run: npm run changeset -- status
+        run: npm run changeset -- status --since=origin/main

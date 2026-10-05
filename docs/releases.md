@@ -26,6 +26,10 @@ Python-набора добавлены проверки перед выпуск�
 2. CI проверяет весь комплект на Ubuntu с Python 3.10 и 3.13, а также macOS с
    Python 3.13. Установка, aliases и CLI проверяются в временных проектах
    существующими тестами. Отдельно валидируются описания Changesets и lockfile.
+   Changesets сравнивает PR с `origin/main`; эта job получает полную Git history.
+   Для служебного PR без выпуска добавьте `npm run changeset -- --empty`.
+   В release PR descriptions уже использованы: эта job пропускается, а вся
+   Python-матрица выполняется.
 3. После merge в main workflow Release повторяет CI и создаёт либо обновляет
    `changeset-release/main`: бот меняет package.json, package-lock.json,
    CHANGELOG.md и удаляет использованные changesets. Перед записью release PR
@@ -36,8 +40,8 @@ Python-набора добавлены проверки перед выпуск�
    `vX.Y.Z` и создаёт GitHub Release с записью из CHANGELOG.md. В GitHub Release
    доступны автоматические source archives со всем комплектом.
 
-Новые changesets до merge release PR обновляют его. Пустой changeset не нужен
-для каждого служебного изменения. npm-публикации нет: `private: true`, а команда
+Новые changesets до merge release PR обновляют его. Пустой changeset для
+служебного PR не повышает версию. npm-публикации нет: `private: true`, а команда
 publish workflow выполняет только tagging. Node.js 22 и npm нужны разработчикам
 для релиза; установка и CLI набора по-прежнему требуют только Python 3.10+.
 Первый changeset поднимает техническую версию 0.0.0 до 0.1.0.
