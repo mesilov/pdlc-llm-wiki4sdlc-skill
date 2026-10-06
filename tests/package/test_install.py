@@ -33,8 +33,14 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         skills = self.target / '.agents/skills'
         self.assertEqual(len(list(skills.glob('wiki-*/SKILL.md'))), 8)
-        reference = Path('wiki-query/references/glossary.md')
-        self.assertEqual((skills / reference).read_bytes(), (ROOT / 'skills' / reference).read_bytes())
+        for name in ('glossary.md', 'writing.md'):
+            reference = Path('wiki-query/references') / name
+            self.assertEqual((skills / reference).read_bytes(), (ROOT / 'skills' / reference).read_bytes())
+        source = ROOT / 'skills/wiki-query/references/utr-source'
+        for path in source.rglob('*'):
+            if path.is_file() and '__pycache__' not in path.parts:
+                reference = Path('wiki-query/references/utr-source') / path.relative_to(source)
+                self.assertEqual((skills / reference).read_bytes(), path.read_bytes())
         for skill in skills.iterdir():
             alias = self.target / '.claude/skills' / skill.name
             self.assertTrue(alias.is_symlink())
@@ -104,6 +110,39 @@ class InstallTest(unittest.TestCase):
         self.assertIn('Неполный комплект', result.stderr)
         self.assertEqual(list(self.target.iterdir()), [])
 
+
+    def test_missing_writing_reference_is_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete writing kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        (kit / 'skills/wiki-query/references/writing.md').unlink(missing_ok=True)
+        result = self.install('--init-wiki', kit=kit)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Неполный комплект', result.stderr)
+        self.assertEqual(list(self.target.iterdir()), [])
+
+    def test_missing_utr_source_resource_is_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete utr source kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        resources = (
+            'skills/simple-russian/SKILL.source.md',
+            'skills/simple-russian/references/checklist.md',
+            'skills/simple-russian/references/use-cases.md',
+            'examples/before-after-ru.md', 'examples/before-after.md',
+            'evals/utr_lint.py', 'evals/md_blocks.py', 'LICENSE', 'manifest.json',
+        )
+        for name in resources:
+            with self.subTest(resource=name):
+                path = kit / 'skills/wiki-query/references/utr-source' / name
+                original = path.read_bytes() if path.exists() else None
+                path.unlink(missing_ok=True)
+                result = self.install('--init-wiki', kit=kit)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('Неполный комплект', result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [])
+                if original is not None:
+                    path.write_bytes(original)
 
     def test_incomplete_kit_is_rejected_before_any_write(self):
         kit = Path(self.temp.name) / 'incomplete kit'

@@ -1,0 +1,17 @@
+{
+  "repository": "https://github.com/GregoryPletnev/SimpleEn-RU",
+  "commit": "aefcd51664f549801758bd5530d9e0f6bba415fc",
+  "files": {
+    "skills/simple-russian/SKILL.md": "143f83f958b724c082d5f7622ed7cb6e4ce84384fed45ca556bdd5f2cd5d99fd",
+    "skills/simple-russian/references/checklist.md": "6c8889122454d10a673d1c14e93cbcc8451079dd90113bb735dad128a20f725e",
+    "skills/simple-russian/references/use-cases.md": "a953ca7141ef047267df4357926c19fab4f06ece2fc0e682efaca7b168937115",
+    "examples/before-after-ru.md": "4352b90122034f5d6f982fc1f3fddad31eb226785e903b095603f6c8ac83ecc2",
+    "examples/before-after.md": "8e0e04a8aa0dd09c3cec457648a6cf2242c9dd6ea55286fb86379f3a06f96c16",
+    "evals/utr_lint.py": "983d8645da99fb439f4ca9b4b160b1a6d727a9d949d3ab1e22b3ac3c38743dc1",
+    "evals/md_blocks.py": "59b386d0a632668970180483064f0bcbb5f680af8f571d34e5a3629fd5f61daf",
+    "LICENSE": "10b2f9435643bae609e4c1a7690131b2aeb6941e9d867e934bc80619935a6f8f"
+  },
+  "local_paths": {
+    "skills/simple-russian/SKILL.md": "skills/simple-russian/SKILL.source.md"
+  }
+}
