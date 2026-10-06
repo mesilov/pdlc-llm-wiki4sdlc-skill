@@ -135,6 +135,76 @@ class LinkLintTest(WikiCliTestCase):
 
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
 
+    def test_reports_broken_reference_link_at_usage_line(self):
+        self.write('knowledge/source.md',
+                   '# Source\n\n[Нет][source]\n\n[source]: missing.md\n')
+        result = self.run_cli('lint')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('E_LINK_MISSING knowledge/source.md:3', result.stdout)
+
+    def test_reference_links_share_path_safety_checks(self):
+        for destination, code in (('/outside.md', 'E_LINK_ABSOLUTE'),
+                                  ('../../outside.md', 'E_LINK_ESCAPE')):
+            with self.subTest(destination=destination):
+                self.write('knowledge/source.md',
+                           f'[Источник][ref]\n\n[ref]: {destination}\n')
+                result = self.run_cli('lint')
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn(code, result.stdout)
+
+    def test_reference_links_reach_index_orphans_and_affected(self):
+        self.write('knowledge/domains/topic/page.md', '# Topic\n')
+        self.write('knowledge/index.md',
+                   '[Topic][ MAIN   page ]\n\n[main page]: <domains/topic/page.md> "Title"\n')
+        lint = self.run_cli('lint')
+        self.assertEqual(lint.returncode, 0, lint.stdout + lint.stderr)
+        self.assertNotIn('W_INDEX_MISSING', lint.stdout)
+        self.assertNotIn('knowledge/domains/topic/page.md', self.run_cli('find-orphans').stdout)
+        affected = self.run_cli('affected', 'knowledge/domains/topic/page.md')
+        self.assertIn('прямая-ссылка', affected.stdout)
+        self.assertIn('knowledge/index.md', affected.stdout)
+
+    def test_collapsed_shortcut_and_image_references_are_checked(self):
+        for usage in ('[ref][]', '[ref]', '![alt][ref]'):
+            with self.subTest(usage=usage):
+                self.write('knowledge/source.md', f'{usage}\n\n[ref]: missing.md\n')
+                result = self.run_cli('lint')
+                self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+                self.assertIn('E_LINK_MISSING', result.stdout)
+
+    def test_ignores_reference_definitions_and_uses_first_duplicate(self):
+        self.write('knowledge/target.md', '# Target\n')
+        self.write('knowledge/source.md',
+                   '[ref]\n\n[ref]: target.md\n[REF]: missing.md\n[unused]: missing.md\n')
+        result = self.run_cli('lint')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_ignores_references_inside_inline_and_fenced_code(self):
+        self.write('knowledge/source.md',
+                   '`[ref]`\n\n```md\n[ref]\n```\n\n[ref]: missing.md\n')
+        result = self.run_cli('lint')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_ignores_link_examples_inside_indented_code(self):
+        for indent in ('    ', '\t'):
+            with self.subTest(indent=repr(indent)):
+                self.write('knowledge/source.md',
+                           f'# Source\n\n{indent}[Пример](missing.md)\n\n{indent}[ref]\n\n[ref]: missing.md\n')
+                result = self.run_cli('lint')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
+    def test_indented_paragraph_continuation_is_still_checked(self):
+        self.write('knowledge/source.md', 'Paragraph\n    [Нет](missing.md)\n')
+        result = self.run_cli('lint')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('knowledge/source.md:2', result.stdout)
+
+    def test_indented_list_continuation_is_still_checked(self):
+        self.write('knowledge/source.md', '- Item\n\n    [Нет](missing.md)\n')
+        result = self.run_cli('lint')
+        self.assertEqual(result.returncode, 1, result.stdout + result.stderr)
+        self.assertIn('knowledge/source.md:3', result.stdout)
+
 
 class DecisionLintTest(WikiCliTestCase):
     def test_accepts_valid_decision_filename(self):

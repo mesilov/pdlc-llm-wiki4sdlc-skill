@@ -17,6 +17,10 @@ DECISION_NAME_RE = re.compile(
     r"^\d{4}-(?:0[1-9]|1[0-2])-[a-z0-9]+(?:-[a-z0-9]+)*\.md$"
 )
 LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)\n]+)\)")
+REFERENCE_DEFINITION_RE = re.compile(r"^ {0,3}\[((?:\\.|[^\]\\])+)\]:[ \t]*(.+)$")
+REFERENCE_LINK_RE = re.compile(
+    r"(?<!\\)!?\[((?:\\.|[^\]\\\n])+)\](?:[ \t]*\[((?:\\.|[^\]\\\n])*)\])?"
+)
 INLINE_CODE_RE = re.compile(r"(`+)(.*?)\1")
 WINDOWS_ABSOLUTE_RE = re.compile(r"^[A-Za-z]:[\\/]")
 FENCE_RE = re.compile(r"^[ ]{0,3}(`{3,}|~{3,})(.*)$")
@@ -81,8 +85,12 @@ DOCUMENT_DEFAULTS = {
     "glossary": "GLOSSARY.md", "log": "log.md",
 }
 LAYER_DEFAULTS = {
-    "domains": "domains", "decisions": "decisions", "inbox": "inbox", "archive": "archive",
+    "domains": "domains", "views": "views", "decisions": "decisions", "inbox": "inbox", "archive": "archive",
 }
+DEFAULT_VIEWS = (
+    "product", "discovery", "experience", "engineering",
+    "go-to-market", "operations", "measurement",
+)
 
 
 @dataclass(frozen=True)
@@ -96,6 +104,7 @@ class WikiLayout:
     scan_files: tuple[Path, ...]
     decision_pattern: re.Pattern
     glossary_sort: str
+    views: tuple[str, ...]
 
 
 def profile_path(root: Path, base: Path, value: str, key: str) -> Path:
@@ -183,7 +192,8 @@ def wiki_layout(root: Path) -> WikiLayout:
     sort = values.get("glossary_sort", "latin-cyrillic")
     if sort not in ("latin-cyrillic", "unicode"):
         raise WikiError("glossary_sort: допустимы latin-cyrillic или unicode")
-    return WikiLayout(corpus, raw, knowledge, openspec, *mappings, scan_files, decision_pattern, sort)
+    views = tuple(values.get("views", DEFAULT_VIEWS))
+    return WikiLayout(corpus, raw, knowledge, openspec, *mappings, scan_files, decision_pattern, sort, views)
 
 
 def discover_repository(start: Path | None = None) -> Path:
@@ -242,29 +252,59 @@ def without_code_lines(text: str, *, preserve_inline: bool = False) -> list[str]
     result: list[str] = []
     fence_character: str | None = None
     fence_length = 0
+    fence_indent = 0
+    indented_code = False
+    paragraph = False
+    list_indents: list[int] = []
 
     for line in text.splitlines():
-        fence = FENCE_RE.match(line)
-        if fence:
-            marker = fence.group(1)
-            suffix = fence.group(2).strip()
-            if fence_character is None:
-                fence_character = marker[0]
-                fence_length = len(marker)
-            elif (
-                marker[0] == fence_character
-                and len(marker) >= fence_length
-                and not suffix
-            ):
+        expanded = line.expandtabs(4)
+        indent = len(expanded) - len(expanded.lstrip(' '))
+        if fence_character is not None:
+            fence = FENCE_RE.match(expanded[fence_indent:] if indent >= fence_indent else expanded)
+            if (fence and fence.group(1)[0] == fence_character
+                    and len(fence.group(1)) >= fence_length and not fence.group(2).strip()):
                 fence_character = None
                 fence_length = 0
-            result.append("")
+            result.append('')
             continue
 
-        if fence_character is not None:
-            result.append("")
+        if not line.strip():
+            result.append('')
+            paragraph = False
             continue
 
+        # A continuation is indented relative to its list item, not the page.
+        # Four spaces can therefore be ordinary list text, rather than code.
+        while list_indents and indent < list_indents[-1]:
+            list_indents.pop()
+        container_indent = list_indents[-1] if list_indents else 0
+        if indent - container_indent >= 4 and (indented_code or not paragraph):
+            result.append('')
+            indented_code = True
+            continue
+        indented_code = False
+
+        marker = re.match(r"^ *(?:[-+*]|\d{1,9}[.)]) +(?=\S)", expanded)
+        if marker and indent - container_indent < 4:
+            list_indents.append(marker.end())
+            paragraph = True
+        content_line = expanded[container_indent:]
+        fence = FENCE_RE.match(content_line)
+        if fence:
+            marker = fence.group(1)
+            fence_character = marker[0]
+            fence_length = len(marker)
+            fence_indent = container_indent
+            paragraph = False
+            result.append('')
+            continue
+
+        # An indented block cannot interrupt a prose paragraph. Headings,
+        # reference definitions and separators end that paragraph instead.
+        paragraph = not bool(re.match(
+            r"^ {0,3}(?:#{1,6}(?:\s|$)|\[[^\]]+\]:|(?:[-*_] *){3,}$)", content_line
+        ))
         result.append(line if preserve_inline else INLINE_CODE_RE.sub("", line))
 
     return result
@@ -280,10 +320,36 @@ def link_destination(raw_destination: str) -> str:
 def iter_link_destinations(path: Path) -> list[tuple[int, str]]:
     destinations: list[tuple[int, str]] = []
     text = path.read_text(encoding="utf-8")
+    # Definitions retain quoted titles and inline code in file names; usages
+    # exclude inline code. Both passes retain the original source line numbers.
+    definition_lines = without_code_lines(text, preserve_inline=True)
+    definitions: dict[str, str] = {}
+    excluded: set[int] = set()
+    for line_number, line in enumerate(definition_lines, start=1):
+        match = REFERENCE_DEFINITION_RE.match(line)
+        if match:
+            label = normalized_reference_label(match.group(1))
+            definitions.setdefault(label, link_destination(match.group(2)))
+            excluded.add(line_number)
     for line_number, line in enumerate(without_code_lines(text), start=1):
+        if line_number in excluded:
+            continue
+        inline_spans = []
         for match in LINK_RE.finditer(line):
             destinations.append((line_number, link_destination(match.group(1))))
+            inline_spans.append(match.span())
+        for match in REFERENCE_LINK_RE.finditer(line):
+            if any(start < match.end() and match.start() < end for start, end in inline_spans):
+                continue
+            label = normalized_reference_label(match.group(2) or match.group(1))
+            if label in definitions:
+                destinations.append((line_number, definitions[label]))
     return destinations
+
+
+def normalized_reference_label(label: str) -> str:
+    label = re.sub(r"\\([!\"#$%&'()*+,\-./:;<=>?@\[\\\]^_`{|}~])", r"\1", label)
+    return " ".join(label.casefold().split())
 
 
 def resolve_link(root: Path, source: Path, line: int, destination: str) -> LinkReference:
@@ -628,12 +694,15 @@ def fix_glossary_order(root: Path) -> bool:
 
 
 def lint_findings(root: Path) -> list[Finding]:
+    from _trace import trace_findings
+
     findings = link_findings(root)
     findings.extend(decision_findings(root))
     findings.extend(duplicate_h1_findings(root))
     findings.extend(orphan_findings(root))
     findings.extend(semantic_index_findings(root))
     findings.extend(glossary_findings(root))
+    findings.extend(trace_findings(root))
     return sorted(findings, key=lambda finding: finding.sort_key(root))
 
 
@@ -653,12 +722,17 @@ def repository_status(root: Path) -> list[tuple[str, int]]:
         ("Страницы знаний", count_markdown(layout.knowledge)),
         ("Доменные страницы", count_markdown(layout.layers["domains"])),
     ]
-    sections.extend(
-        (f"Представление {directory.name}", count_markdown(directory))
-        for directory in sorted(layout.knowledge.iterdir())
-        if directory.is_dir() and directory.resolve() not in {path.resolve() for path in layout.layers.values()}
-        and is_within(directory.resolve(), root.resolve())
-    )
+    view_counts: dict[str, int] = {}
+    view_directories = list(layout.knowledge.iterdir())
+    layer_paths = [path.resolve() for path in layout.layers.values()]
+    if layout.layers["views"].is_dir():
+        view_directories.extend(layout.layers["views"].iterdir())
+    for directory in view_directories:
+        resolved = directory.resolve()
+        if (directory.is_dir() and is_within(resolved, root.resolve())
+                and not any(is_within(layer, resolved) for layer in layer_paths)):
+            view_counts[directory.name] = view_counts.get(directory.name, 0) + count_markdown(directory)
+    sections.extend((f"Представление {name}", count) for name, count in sorted(view_counts.items()))
     sections.extend([
         ("Решения", count_markdown(layout.layers["decisions"])),
         ("Страницы входящих идей", count_markdown(layout.layers["inbox"])),

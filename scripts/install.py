@@ -31,7 +31,7 @@ def check_destination(path: Path, root: Path, *, alias=False):
 def installation_plan(root: Path, init_wiki: bool, claude: bool):
     required = [Path('skills') / name / 'SKILL.md' for name in SKILLS]
     required.extend(Path('skills/wiki-query/references') / name
-                    for name in ('contract.md', 'profile.md', 'glossary.md', 'writing.md'))
+                    for name in ('contract.md', 'profile.md', 'glossary.md', 'pdlc.md', 'writing.md', 'traceability.md'))
     required.extend(Path('skills/wiki-query/references/utr-source') / name for name in (
         'skills/simple-russian/SKILL.source.md',
         'skills/simple-russian/references/checklist.md',
@@ -39,7 +39,7 @@ def installation_plan(root: Path, init_wiki: bool, claude: bool):
         'examples/before-after-ru.md', 'examples/before-after.md',
         'evals/utr_lint.py', 'evals/md_blocks.py', 'LICENSE', 'manifest.json'))
     required.extend(Path('bin/wiki') / name
-                    for name in ('_core.py', 'lint', 'status', 'find-orphans', 'affected'))
+                    for name in ('_core.py', '_trace.py', 'lint', 'status', 'find-orphans', 'affected', 'trace'))
     if init_wiki:
         required.extend(Path('templates/wiki') / name for name in (
             'wiki.config.json', 'raw/README.md', 'knowledge/SCHEMA.md',
