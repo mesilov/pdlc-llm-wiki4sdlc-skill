@@ -22,18 +22,49 @@ class PortableProfileTest(WikiCliTestCase):
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         return json.loads(result.stdout)
 
-    def test_default_pdlc_views_without_materializing_pages(self):
+    def test_default_lenses_without_materializing_pages(self):
         before = sorted(path.relative_to(self.root) for path in self.root.rglob('*'))
         self.assertEqual(self.resolved_views(), [
-            'ideation', 'discovery', 'definition', 'design', 'development',
-            'validation', 'launch', 'optimization'])
+            'product', 'discovery', 'experience', 'engineering',
+            'go-to-market', 'operations', 'measurement'])
         self.assertEqual(sorted(path.relative_to(self.root) for path in self.root.rglob('*')), before)
 
-    def test_explicit_views_replace_pdlc_defaults(self):
+    def test_explicit_views_replace_lens_defaults(self):
         for views in (['research', 'operations'], []):
             with self.subTest(views=views):
                 self.profile(views=views)
                 self.assertEqual(self.resolved_views(), views)
+
+    def test_views_layer_is_configurable_and_counted_without_migration(self):
+        self.profile(layers={'views': 'perspectives'})
+        self.write('knowledge/perspectives/product/page.md', '# Product view\n')
+        self.write('knowledge/perspectives/engineering/page.md', '# Engineering view\n')
+        self.write('knowledge/operations/page.md', '# Legacy view\n')
+        result = self.run_cli('status')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Представление product: 1', result.stdout)
+        self.assertIn('Представление engineering: 1', result.stdout)
+        self.assertIn('Представление operations: 1', result.stdout)
+        self.assertNotIn('Представление perspectives:', result.stdout)
+        self.assertFalse((self.root / 'knowledge/views').exists())
+
+    def test_status_counts_default_nested_views(self):
+        self.write('knowledge/views/discovery/page.md', '# Discovery view\n')
+        result = self.run_cli('status')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Представление discovery: 1', result.stdout)
+        self.assertNotIn('Представление views:', result.stdout)
+
+    def test_status_does_not_count_layer_ancestors_as_legacy_views(self):
+        self.profile(layers={'views': 'perspectives/lenses', 'domains': 'canonical/topics'})
+        self.write('knowledge/perspectives/lenses/product/page.md', '# Product\n')
+        self.write('knowledge/canonical/topics/demo/page.md', '# Topic\n')
+        result = self.run_cli('status')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('Представление product: 1', result.stdout)
+        self.assertIn('Доменные страницы: 1', result.stdout)
+        self.assertNotIn('Представление perspectives:', result.stdout)
+        self.assertNotIn('Представление canonical:', result.stdout)
 
     def relocate(self):
         (self.root / 'docs/wiki').mkdir(parents=True)

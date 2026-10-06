@@ -85,11 +85,11 @@ DOCUMENT_DEFAULTS = {
     "glossary": "GLOSSARY.md", "log": "log.md",
 }
 LAYER_DEFAULTS = {
-    "domains": "domains", "decisions": "decisions", "inbox": "inbox", "archive": "archive",
+    "domains": "domains", "views": "views", "decisions": "decisions", "inbox": "inbox", "archive": "archive",
 }
-PDLC_VIEWS = (
-    "ideation", "discovery", "definition", "design", "development",
-    "validation", "launch", "optimization",
+DEFAULT_VIEWS = (
+    "product", "discovery", "experience", "engineering",
+    "go-to-market", "operations", "measurement",
 )
 
 
@@ -192,7 +192,7 @@ def wiki_layout(root: Path) -> WikiLayout:
     sort = values.get("glossary_sort", "latin-cyrillic")
     if sort not in ("latin-cyrillic", "unicode"):
         raise WikiError("glossary_sort: допустимы latin-cyrillic или unicode")
-    views = tuple(values.get("views", PDLC_VIEWS))
+    views = tuple(values.get("views", DEFAULT_VIEWS))
     return WikiLayout(corpus, raw, knowledge, openspec, *mappings, scan_files, decision_pattern, sort, views)
 
 
@@ -694,12 +694,15 @@ def fix_glossary_order(root: Path) -> bool:
 
 
 def lint_findings(root: Path) -> list[Finding]:
+    from _trace import trace_findings
+
     findings = link_findings(root)
     findings.extend(decision_findings(root))
     findings.extend(duplicate_h1_findings(root))
     findings.extend(orphan_findings(root))
     findings.extend(semantic_index_findings(root))
     findings.extend(glossary_findings(root))
+    findings.extend(trace_findings(root))
     return sorted(findings, key=lambda finding: finding.sort_key(root))
 
 
@@ -719,12 +722,17 @@ def repository_status(root: Path) -> list[tuple[str, int]]:
         ("Страницы знаний", count_markdown(layout.knowledge)),
         ("Доменные страницы", count_markdown(layout.layers["domains"])),
     ]
-    sections.extend(
-        (f"Представление {directory.name}", count_markdown(directory))
-        for directory in sorted(layout.knowledge.iterdir())
-        if directory.is_dir() and directory.resolve() not in {path.resolve() for path in layout.layers.values()}
-        and is_within(directory.resolve(), root.resolve())
-    )
+    view_counts: dict[str, int] = {}
+    view_directories = list(layout.knowledge.iterdir())
+    layer_paths = [path.resolve() for path in layout.layers.values()]
+    if layout.layers["views"].is_dir():
+        view_directories.extend(layout.layers["views"].iterdir())
+    for directory in view_directories:
+        resolved = directory.resolve()
+        if (directory.is_dir() and is_within(resolved, root.resolve())
+                and not any(is_within(layer, resolved) for layer in layer_paths)):
+            view_counts[directory.name] = view_counts.get(directory.name, 0) + count_markdown(directory)
+    sections.extend((f"Представление {name}", count) for name, count in sorted(view_counts.items()))
     sections.extend([
         ("Решения", count_markdown(layout.layers["decisions"])),
         ("Страницы входящих идей", count_markdown(layout.layers["inbox"])),

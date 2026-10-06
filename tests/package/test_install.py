@@ -33,7 +33,7 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         skills = self.target / '.agents/skills'
         self.assertEqual(len(list(skills.glob('wiki-*/SKILL.md'))), 8)
-        for name in ('glossary.md', 'pdlc.md', 'writing.md'):
+        for name in ('glossary.md', 'pdlc.md', 'writing.md', 'traceability.md'):
             reference = Path('wiki-query/references') / name
             self.assertEqual((skills / reference).read_bytes(), (ROOT / 'skills' / reference).read_bytes())
         source = ROOT / 'skills/wiki-query/references/utr-source'
@@ -46,6 +46,10 @@ class InstallTest(unittest.TestCase):
             self.assertTrue(alias.is_symlink())
             self.assertEqual(alias.resolve(), skill.resolve())
         self.assertFalse((self.target / 'openspec').exists())
+        trace = subprocess.run([sys.executable, str(self.target / 'bin/wiki/trace')],
+                               cwd=self.target, capture_output=True, text=True)
+        self.assertEqual(trace.returncode, 2)
+        self.assertIn('подключите OpenSpec', trace.stderr)
         for command, args in [('lint', ['--dry-run']), ('status', []), ('find-orphans', []), ('affected', ['Каноническая'])]:
             with self.subTest(command=command):
                 run = subprocess.run([sys.executable, str(self.target / 'bin/wiki' / command), *args],
@@ -60,6 +64,26 @@ class InstallTest(unittest.TestCase):
         result = self.install('--init-wiki', '--claude')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(before, {p: p.stat().st_mtime_ns for p in self.target.rglob('*') if p.is_file()})
+
+    def test_installed_trace_is_read_only_on_first_run(self):
+        from tests.wiki_harness.test_trace import TraceTest
+
+        fixture = TraceTest()
+        fixture.setUp()
+        try:
+            self.target = fixture.root
+            self.assertEqual(self.install().returncode, 0)
+            before = {p: p.read_bytes() for p in self.target.rglob('*') if p.is_file()}
+            result = subprocess.run([str(self.target / 'bin/wiki/trace'), 'demo', '--json'],
+                                    cwd=self.target, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(json.loads(result.stdout)['features'][0]['reverse']['WK-S1'], ['OS-S1'])
+            after = {p: p.read_bytes() for p in self.target.rglob('*') if p.is_file()}
+            self.assertEqual(set(before), set(after))
+            for path in before:
+                self.assertEqual(before[path], after[path], str(path))
+        finally:
+            fixture.tearDown()
 
     def test_conflict_refuses_entire_install_and_preserves_project(self):
         entry = self.target / 'bin/wiki/lint'
@@ -129,6 +153,21 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn('Неполный комплект', result.stderr)
         self.assertEqual(list(self.target.iterdir()), [])
+
+    def test_missing_trace_resources_are_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete trace kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        for name in ('bin/wiki/_trace.py', 'bin/wiki/trace', 'skills/wiki-query/references/traceability.md'):
+            with self.subTest(resource=name):
+                path = kit / name
+                original = path.read_bytes()
+                path.unlink()
+                result = self.install('--init-wiki', kit=kit)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('Неполный комплект', result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [])
+                path.write_bytes(original)
 
     def test_missing_utr_source_resource_is_rejected_before_any_write(self):
         kit = Path(self.temp.name) / 'incomplete utr source kit'
