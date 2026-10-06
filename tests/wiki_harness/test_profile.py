@@ -1,4 +1,5 @@
 import json
+import os
 import shutil
 
 from tests.wiki_harness.test_cli import WikiCliTestCase
@@ -7,6 +8,32 @@ from tests.wiki_harness.test_cli import WikiCliTestCase
 class PortableProfileTest(WikiCliTestCase):
     def profile(self, **values):
         self.write('wiki.config.json', json.dumps(values))
+
+    def resolved_views(self):
+        import subprocess
+        import sys
+        from tests.wiki_harness.test_cli import BIN_DIR
+        result = subprocess.run(
+            [sys.executable, '-c',
+             'import json; from pathlib import Path; from _core import wiki_layout; '
+             'print(json.dumps(wiki_layout(Path.cwd()).views))'],
+            cwd=self.root, env={**os.environ, 'PYTHONPATH': str(BIN_DIR)},
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def test_default_pdlc_views_without_materializing_pages(self):
+        before = sorted(path.relative_to(self.root) for path in self.root.rglob('*'))
+        self.assertEqual(self.resolved_views(), [
+            'ideation', 'discovery', 'definition', 'design', 'development',
+            'validation', 'launch', 'optimization'])
+        self.assertEqual(sorted(path.relative_to(self.root) for path in self.root.rglob('*')), before)
+
+    def test_explicit_views_replace_pdlc_defaults(self):
+        for views in (['research', 'operations'], []):
+            with self.subTest(views=views):
+                self.profile(views=views)
+                self.assertEqual(self.resolved_views(), views)
 
     def relocate(self):
         (self.root / 'docs/wiki').mkdir(parents=True)

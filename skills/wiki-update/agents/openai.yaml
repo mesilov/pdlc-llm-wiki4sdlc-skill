@@ -1,4 +1,4 @@
 interface:
   display_name: "Wiki Update"
   short_description: "Каскадное обновление существующих знаний"
-  default_prompt: "Используй $wiki-update, чтобы обновить связанные страницы из уже сохранённого evidence."
+  default_prompt: "Используй $wiki-update, чтобы обновить связанные страницы на основании уже сохранённых источников."
