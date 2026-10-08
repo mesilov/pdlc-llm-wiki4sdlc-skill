@@ -30,6 +30,40 @@ Ingest начинается с источника, research — с вопрос�
 Каталоги появляются по содержимому; существующая wiki сохраняет свою структуру.
 PDLC содержит шесть этапов, а Validation проходит через все этапы.
 
+### PDLC, SDLC и линзы
+
+![Шесть этапов PDLC, перекрывающиеся работы SDLC, сквозная Validation и семь линз знаний](docs/diagrams/pdlc-sdlc-lenses.svg)
+
+Длительности и перекрытия условные. Линзы доступны на протяжении всего цикла.
+
+### Дефолтная структура wiki
+
+```mermaid
+flowchart TB
+    R["raw/<br/>Первичные источники и provenance"]
+
+    subgraph K["knowledge/"]
+        D["domains/<br/>Канонические факты и гипотезы"]
+
+        V["views/<br/>product/ · discovery/ · experience/<br/>engineering/ · go-to-market/<br/>operations/ · measurement/"]
+
+        C["decisions/<br/>Выбор, основания и статус"]
+
+        I["inbox/<br/>Входящие идеи"]
+        A["archive/<br/>Исторические материалы"]
+
+        S["SCHEMA.md · index.md · synthesis.md<br/>GLOSSARY.md · ASSUMPTIONS.md<br/>OPEN-QUESTIONS.md · log.md"]
+
+        D -->|"знания для тематического синтеза"| V
+        D -->|"основания выбора"| C
+    end
+
+    R -->|"источники для синтеза"| D
+```
+
+Views ссылаются на каноническое знание и добавляют выводы по своим вопросам.
+Каталоги появляются по мере наполнения; пути и набор линз настраиваются в `wiki.config.json`.
+
 ## Используемые подходы
 
 | Подход | Применение в наборе |

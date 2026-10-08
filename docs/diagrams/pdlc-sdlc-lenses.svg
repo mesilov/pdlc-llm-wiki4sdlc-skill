@@ -1,0 +1,116 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="960" height="1140" viewBox="0 0 960 1140" role="img" aria-labelledby="title description">
+  <title id="title">PDLC, SDLC и семь линз знаний</title>
+  <desc id="description">Условная линия времени одного продуктового изменения. Discovery включает Ideation; далее идут Definition, Design, Development, Launch и Optimization. Работы SDLC перекрываются и затрагивают несколько этапов PDLC. Validation и семь тематических линз доступны весь цикл. Длительности и границы иллюстративные. Обратная связь запускает следующую итерацию.</desc>
+  <style>
+    text { font-family: Arial, Helvetica, sans-serif; font-size: 18px; fill: #262626; }
+    .title { font-size: 26px; font-weight: 500; }
+    .heading { font-size: 20px; font-weight: 500; }
+    .small { font-size: 16px; }
+    .phase { text-anchor: middle; font-size: 16px; }
+    .grid { stroke: #e5e5e5; stroke-width: 1; }
+    .work { fill: #808080; }
+  </style>
+  <rect width="960" height="1140" fill="#ffffff"/>
+  <text class="title" x="32" y="48">PDLC, SDLC и семь линз знаний</text>
+
+  <text class="heading" x="32" y="95">Один цикл</text>
+  <text class="small" x="204" y="95">Начало</text>
+  <text class="small" x="928" y="95" text-anchor="end">Время →</text>
+  <path class="grid" d="M204 105H928"/>
+
+  <text class="heading" x="32" y="140">PDLC</text>
+  <text class="small" x="32" y="165">Фокус продукта</text>
+  <g fill="#ececee">
+    <rect x="204" y="117" width="117" height="66"/>
+    <rect x="325" y="117" width="117" height="66"/>
+    <rect x="446" y="117" width="117" height="66"/>
+    <rect x="567" y="117" width="117" height="66"/>
+    <rect x="688" y="117" width="117" height="66"/>
+    <rect x="809" y="117" width="119" height="66"/>
+  </g>
+  <text class="phase" x="262" y="143">Discovery<tspan x="262" dy="23">+ Ideation</tspan></text>
+  <text class="phase" x="383" y="156">Definition</text>
+  <text class="phase" x="504" y="156">Design</text>
+  <text class="phase" x="625" y="156">Development</text>
+  <text class="phase" x="746" y="156">Launch</text>
+  <text class="phase" x="868" y="156">Optimization</text>
+
+  <text class="heading" x="32" y="231">SDLC</text>
+  <text class="small" x="204" y="231">Работы над ПО · перекрытия и длительности условные</text>
+  <g class="grid">
+    <path d="M325 248V521M446 248V521M567 248V521M688 248V521M809 248V521M928 248V521"/>
+  </g>
+  <text x="32" y="269">Планирование</text>
+  <rect class="work" x="226" y="257" width="195" height="12"/>
+  <text x="32" y="309">Требования</text>
+  <rect class="work" x="276" y="297" width="217" height="12"/>
+  <text x="32" y="349">Проектирование</text>
+  <rect class="work" x="414" y="337" width="181" height="12"/>
+  <text x="32" y="389">Разработка</text>
+  <rect class="work" x="523" y="377" width="188" height="12"/>
+  <text x="32" y="429">Тестирование</text>
+  <rect class="work" x="494" y="417" width="304" height="12"/>
+  <text x="32" y="469">Развёртывание</text>
+  <rect class="work" x="696" y="457" width="94" height="12"/>
+  <text x="32" y="509">Сопровождение</text>
+  <rect class="work" x="769" y="497" width="159" height="12"/>
+
+  <text class="heading" x="32" y="590">Validation</text>
+  <rect x="204" y="558" width="724" height="52" fill="#ececee"/>
+  <text class="small" x="218" y="590">Проверка гипотез, решения, кода и результата · весь цикл</text>
+
+  <text class="heading" x="32" y="659">Wiki views</text>
+  <text class="small" x="204" y="659">Линзы для вопросов PDLC и SDLC · доступны весь цикл</text>
+
+  <g transform="translate(0 682)">
+    <rect x="204" width="724" height="46" fill="#eee3fe"/>
+    <rect x="204" width="4" height="46" fill="#924ff7"/>
+    <rect x="32" y="18" width="10" height="10" fill="#924ff7"/>
+    <text x="50" y="30">product</text>
+    <text x="220" y="30">Для кого, зачем и в каких границах?</text>
+  </g>
+  <g transform="translate(0 737)">
+    <rect x="204" width="724" height="46" fill="#deefff"/>
+    <rect x="204" width="4" height="46" fill="#339cff"/>
+    <rect x="32" y="18" width="10" height="10" fill="#339cff"/>
+    <text x="50" y="30">discovery</text>
+    <text x="220" y="30">Что известно о проблеме, рынке и альтернативах?</text>
+  </g>
+  <g transform="translate(0 792)">
+    <rect x="204" width="724" height="46" fill="#dff4f3"/>
+    <rect x="204" width="4" height="46" fill="#3ab9b1"/>
+    <rect x="32" y="18" width="10" height="10" fill="#3ab9b1"/>
+    <text x="50" y="30">experience</text>
+    <text x="220" y="30">Как пользователь решает задачу?</text>
+  </g>
+  <g transform="translate(0 847)">
+    <rect x="204" width="724" height="46" fill="#e6e9fe"/>
+    <rect x="204" width="4" height="46" fill="#6376fb"/>
+    <rect x="32" y="18" width="10" height="10" fill="#6376fb"/>
+    <text x="50" y="30">engineering</text>
+    <text x="220" y="30">Как устроено и реализовано решение?</text>
+  </g>
+  <g transform="translate(0 902)">
+    <rect x="204" width="724" height="46" fill="#fae4d7"/>
+    <rect x="204" width="4" height="46" fill="#e25507"/>
+    <rect x="32" y="18" width="10" height="10" fill="#e25507"/>
+    <text x="50" y="30">go-to-market</text>
+    <text x="220" y="30">Как донести ценность до пользователей?</text>
+  </g>
+  <g transform="translate(0 957)">
+    <rect x="204" width="724" height="46" fill="#d6f0e0"/>
+    <rect x="204" width="4" height="46" fill="#00a240"/>
+    <rect x="32" y="18" width="10" height="10" fill="#00a240"/>
+    <text x="50" y="30">operations</text>
+    <text x="220" y="30">Как эксплуатировать и поддерживать?</text>
+  </g>
+  <g transform="translate(0 1012)">
+    <rect x="204" width="724" height="46" fill="#fce9f3"/>
+    <rect x="204" width="4" height="46" fill="#eb77b1"/>
+    <rect x="32" y="18" width="10" height="10" fill="#eb77b1"/>
+    <text x="50" y="30">measurement</text>
+    <text x="220" y="30">Как проверить и измерить результат?</text>
+  </g>
+  <path class="grid" d="M32 1083H928"/>
+  <text class="small" x="32" y="1112">↶ Обратная связь: Optimization → Discovery → следующий цикл</text>
+</svg>
