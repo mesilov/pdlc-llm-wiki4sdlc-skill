@@ -31,7 +31,7 @@ def check_destination(path: Path, root: Path, *, alias=False):
 def installation_plan(root: Path, init_wiki: bool, claude: bool):
     required = [Path('skills') / name / 'SKILL.md' for name in SKILLS]
     required.extend(Path('skills/wiki-query/references') / name
-                    for name in ('contract.md', 'profile.md', 'glossary.md', 'pdlc.md', 'writing.md', 'traceability.md'))
+                    for name in ('contract.md', 'profile.md', 'glossary.md', 'pdlc.md', 'writing.md', 'traceability.md', 'metadata.md'))
     required.extend(Path('skills/wiki-query/references/utr-source') / name for name in (
         'skills/simple-russian/SKILL.source.md',
         'skills/simple-russian/references/checklist.md',

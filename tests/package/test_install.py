@@ -33,7 +33,7 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr)
         skills = self.target / '.agents/skills'
         self.assertEqual(len(list(skills.glob('wiki-*/SKILL.md'))), 8)
-        for name in ('glossary.md', 'pdlc.md', 'writing.md', 'traceability.md'):
+        for name in ('glossary.md', 'pdlc.md', 'writing.md', 'traceability.md', 'metadata.md'):
             reference = Path('wiki-query/references') / name
             self.assertEqual((skills / reference).read_bytes(), (ROOT / 'skills' / reference).read_bytes())
         source = ROOT / 'skills/wiki-query/references/utr-source'
@@ -139,6 +139,16 @@ class InstallTest(unittest.TestCase):
         for directory in ('scripts', 'skills', 'bin', 'templates'):
             shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
         (kit / 'skills/wiki-query/references/pdlc.md').unlink(missing_ok=True)
+        result = self.install('--init-wiki', kit=kit)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Неполный комплект', result.stderr)
+        self.assertEqual(list(self.target.iterdir()), [])
+
+    def test_missing_metadata_reference_is_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete metadata kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        (kit / 'skills/wiki-query/references/metadata.md').unlink(missing_ok=True)
         result = self.install('--init-wiki', kit=kit)
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn('Неполный комплект', result.stderr)
