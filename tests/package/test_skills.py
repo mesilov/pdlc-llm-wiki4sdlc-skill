@@ -42,7 +42,7 @@ class SkillPackageTest(unittest.TestCase):
         for folder in folders:
             with self.subTest(skill=folder.name):
                 text = (folder / 'SKILL.md').read_text()
-                match = re.match(r'^---\nname: ([a-z0-9-]+)\ndescription: ("[^\n]+")\n---\n', text)
+                match = re.match(r'^---\nname: ([a-z0-9-]+)\ndescription: ("[^\n]+")\nlicense: MIT\n---\n', text)
                 self.assertIsNotNone(match)
                 self.assertEqual(match[1], folder.name)
                 description = json.loads(match[2])
