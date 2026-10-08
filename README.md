@@ -106,3 +106,11 @@ python3 -m unittest discover -s tests -t .
 
 Установку проверяют на временном проекте.
 См. [происхождение](docs/provenance.md) и [проверку навыков](docs/skill-validation.md).
+
+## Лицензия
+
+Набор распространяется под [MIT License](LICENSE).
+Каждый `wiki-*` содержит `license: MIT` в метаданных и полный текст `LICENSE`,
+который копируется при установке.
+Включённые материалы SimpleEn-RU сохраняют
+[исходную MIT-лицензию и уведомление автора](skills/wiki-query/references/utr-source/LICENSE).
