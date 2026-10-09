@@ -11,6 +11,34 @@ from pathlib import Path
 KIT = Path(__file__).resolve().parents[1]
 SKILLS = ('wiki-audit', 'wiki-decide', 'wiki-ingest', 'wiki-lint',
           'wiki-merge', 'wiki-query', 'wiki-research', 'wiki-update')
+AGENTS = {'claude': 'Claude Code', 'codex': 'Codex', 'opencode': 'OpenCode'}
+
+
+def select_agent(agent: str | None, claude: bool):
+    if claude:
+        if agent not in (None, 'claude'):
+            raise ValueError('--claude несовместим с --agent ' + agent)
+        return 'claude'
+    if agent:
+        return agent
+    if not sys.stdin.isatty():
+        return 'codex'
+    print('Для какого агента установить навыки?')
+    choices = {}
+    for number, (name, label) in enumerate(AGENTS.items(), 1):
+        print(f'  {number}. {label}')
+        choices[str(number)] = name
+        choices[name] = name
+    while True:
+        try:
+            answer = input('Выбор [1-3 или имя; q — отмена]: ').strip().lower()
+        except EOFError:
+            raise ValueError('Ввод завершён до выбора агента; используйте --agent') from None
+        if answer == 'q':
+            return None
+        if answer in choices:
+            return choices[answer]
+        print('Некорректный выбор. Введите 1, 2, 3, claude, codex или opencode.')
 
 
 def source_files(directory: Path):
@@ -84,7 +112,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('project', type=Path, help='existing destination project directory')
     parser.add_argument('--init-wiki', action='store_true', help='also copy a neutral corpus and profile')
-    parser.add_argument('--claude', action='store_true', help='add relative .claude/skills aliases')
+    parser.add_argument('--agent', choices=AGENTS,
+                        help='target agent; otherwise prompt in a terminal, or use codex without a TTY')
+    parser.add_argument('--claude', action='store_true', help='compatibility alias for --agent claude')
     parser.add_argument('--dry-run', action='store_true', help='check conflicts and show planned writes')
     args = parser.parse_args()
     root = args.project.resolve()
@@ -93,7 +123,16 @@ def main():
             raise ValueError(f'Каталог проекта не существует: {root}')
         if root == KIT or KIT.is_relative_to(root):
             raise ValueError('Устанавливайте комплект в отдельный целевой проект')
-        copies, links = installation_plan(root, args.init_wiki, args.claude)
+        agent = select_agent(args.agent, args.claude)
+        if agent is None:
+            print('Установка отменена. Файлы не изменены.')
+            return 0
+        copies, links = installation_plan(root, args.init_wiki, agent == 'claude')
+        print(f'Агент: {AGENTS[agent]}')
+        print(f'Проект: {root}')
+        print('Навыки: .agents/skills/; CLI: bin/wiki/')
+        if agent == 'claude':
+            print('Обнаружение Claude Code: .claude/skills/ -> .agents/skills/')
         for source, target in copies:
             print(f'{"План" if args.dry_run else "Копирование"}: {target.relative_to(root)}')
             if not args.dry_run:
@@ -110,6 +149,9 @@ def main():
     except (ValueError, OSError) as error:
         print(f'Ошибка установки: {error}', file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print('\nУстановка прервана.', file=sys.stderr)
+        return 130
 
 
 if __name__ == '__main__':
