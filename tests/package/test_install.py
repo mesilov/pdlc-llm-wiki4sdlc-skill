@@ -271,6 +271,35 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(list(self.target.iterdir()), [])
         self.assertIn('wiki-query/SKILL.md', result.stdout)
 
+    def test_init_raw_categories_and_guides(self):
+        result = self.install('--init-wiki', '--agent', 'codex')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        profile = json.loads((self.target / 'wiki.config.json').read_text())
+        self.assertEqual(profile.get('raw_categories'), ['sources', 'research'])
+        self.assertEqual(sorted(p.name for p in (self.target / 'raw').iterdir()),
+                         ['README.md', 'research', 'sources'])
+        for category in profile['raw_categories']:
+            guide = Path('raw') / category / 'README.md'
+            self.assertEqual((self.target / guide).read_bytes(),
+                             (ROOT / 'templates/wiki' / guide).read_bytes())
+        self.assertFalse((self.target / '.agents/skills/pdlc-wiki-maintainer').exists())
+
+    def test_missing_raw_resources_are_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete raw kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        for name in ('skills/wiki-query/references/raw.md',
+                     'templates/wiki/raw/sources/README.md', 'templates/wiki/raw/research/README.md'):
+            with self.subTest(resource=name):
+                path = kit / name
+                contents = path.read_bytes()
+                path.unlink()
+                result = self.install('--init-wiki', kit=kit)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('Неполный комплект', result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [])
+                path.write_bytes(contents)
+
     def test_init_and_all_commands_without_openspec(self):
         result = self.install('--init-wiki', '--claude')
         self.assertEqual(result.returncode, 0, result.stderr)

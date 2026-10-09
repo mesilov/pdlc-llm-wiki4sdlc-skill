@@ -91,6 +91,7 @@ DEFAULT_VIEWS = (
     "product", "discovery", "experience", "engineering",
     "go-to-market", "operations", "measurement",
 )
+DEFAULT_RAW_CATEGORIES = ("sources", "research")
 
 
 @dataclass(frozen=True)
@@ -105,6 +106,7 @@ class WikiLayout:
     decision_pattern: re.Pattern
     glossary_sort: str
     views: tuple[str, ...]
+    raw_categories: tuple[str, ...]
 
 
 def profile_path(root: Path, base: Path, value: str, key: str) -> Path:
@@ -193,7 +195,8 @@ def wiki_layout(root: Path) -> WikiLayout:
     if sort not in ("latin-cyrillic", "unicode"):
         raise WikiError("glossary_sort: допустимы latin-cyrillic или unicode")
     views = tuple(values.get("views", DEFAULT_VIEWS))
-    return WikiLayout(corpus, raw, knowledge, openspec, *mappings, scan_files, decision_pattern, sort, views)
+    raw_categories = tuple(values.get("raw_categories", DEFAULT_RAW_CATEGORIES))
+    return WikiLayout(corpus, raw, knowledge, openspec, *mappings, scan_files, decision_pattern, sort, views, raw_categories)
 
 
 def discover_repository(start: Path | None = None, *, validate: bool = True) -> Path:
