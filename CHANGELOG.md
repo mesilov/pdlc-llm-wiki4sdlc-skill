@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.1.0 - 2026-10-09
+
 ### Added
 
 - `bin/wiki/doctor` проверяет Git remote целевого проекта и запуск `gh` или
