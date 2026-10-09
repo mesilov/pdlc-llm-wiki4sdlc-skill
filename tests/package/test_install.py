@@ -271,6 +271,52 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(list(self.target.iterdir()), [])
         self.assertIn('wiki-query/SKILL.md', result.stdout)
 
+    def test_init_raw_categories_and_guides(self):
+        result = self.install('--init-wiki', '--agent', 'codex')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        profile = json.loads((self.target / 'wiki.config.json').read_text())
+        self.assertEqual(profile.get('raw_categories'), ['sources', 'research'])
+        self.assertEqual(sorted(p.name for p in (self.target / 'raw').iterdir()),
+                         ['README.md', 'research', 'sources'])
+        for category in profile['raw_categories']:
+            guide = Path('raw') / category / 'README.md'
+            self.assertEqual((self.target / guide).read_bytes(),
+                             (ROOT / 'templates/wiki' / guide).read_bytes())
+        self.assertFalse((self.target / '.agents/skills/pdlc-wiki-maintainer').exists())
+
+    def test_missing_raw_resources_are_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete raw kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        for name in ('bin/wiki/raw-lint', 'bin/wiki/_raw.py', 'bin/wiki/_okf.py', 'bin/wiki/requirements.txt',
+                     'skills/wiki-query/references/raw.md',
+                     'templates/wiki/raw/sources/README.md', 'templates/wiki/raw/research/README.md'):
+            with self.subTest(resource=name):
+                path = kit / name
+                contents = path.read_bytes()
+                path.unlink()
+                result = self.install('--init-wiki', kit=kit)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('Неполный комплект', result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [])
+                path.write_bytes(contents)
+
+    def test_installed_raw_lint_is_read_only_on_first_run(self):
+        from tests.wiki_harness.test_raw import HEADER
+
+        self.assertEqual(self.install('--init-wiki', '--agent', 'codex').returncode, 0)
+        unit = self.target / 'raw/sources/api/2026-10-09-reference'
+        unit.mkdir(parents=True)
+        (unit / 'README.md').write_text(HEADER)
+        (unit / 'original.md').write_text('# Original without frontmatter\n')
+        before = {p.relative_to(self.target): p.read_bytes() for p in self.target.rglob('*') if p.is_file()}
+        result = subprocess.run([sys.executable, str(self.target / 'bin/wiki/raw-lint'), '--json'],
+                                cwd=self.target, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['summary']['checked'], 1)
+        after = {p.relative_to(self.target): p.read_bytes() for p in self.target.rglob('*') if p.is_file()}
+        self.assertEqual(before, after)
+
     def test_init_and_all_commands_without_openspec(self):
         result = self.install('--init-wiki', '--claude')
         self.assertEqual(result.returncode, 0, result.stderr)

@@ -1,6 +1,7 @@
 import json
 import os
 import shutil
+from pathlib import Path
 
 from tests.wiki_harness.test_cli import WikiCliTestCase
 
@@ -8,6 +9,54 @@ from tests.wiki_harness.test_cli import WikiCliTestCase
 class PortableProfileTest(WikiCliTestCase):
     def profile(self, **values):
         self.write('wiki.config.json', json.dumps(values))
+
+    def resolved_raw_categories(self):
+        import subprocess
+        import sys
+        from tests.wiki_harness.test_cli import BIN_DIR
+        result = subprocess.run(
+            [sys.executable, '-c',
+             'import json; from pathlib import Path; from _core import wiki_layout; '
+             'print(json.dumps(getattr(wiki_layout(Path.cwd()), "raw_categories", None)))'],
+            cwd=self.root, env={**os.environ, 'PYTHONPATH': str(BIN_DIR)},
+            capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        return json.loads(result.stdout)
+
+    def test_default_raw_categories_do_not_create_directories(self):
+        before = sorted(path.relative_to(self.root) for path in self.root.rglob('*'))
+        self.assertEqual(self.resolved_raw_categories(), ['sources', 'research'])
+        self.profile()
+        self.assertEqual(self.resolved_raw_categories(), ['sources', 'research'])
+        self.assertEqual(sorted(path.relative_to(self.root) for path in self.root.rglob('*')),
+                         sorted([*before, Path('wiki.config.json')]))
+
+    def test_explicit_raw_categories_replace_defaults(self):
+        for categories in (['interviews', 'experiments'], []):
+            with self.subTest(categories=categories):
+                self.profile(raw_categories=categories)
+                self.assertEqual(self.resolved_raw_categories(), categories)
+
+    def test_rejects_nested_and_root_raw_category_names(self):
+        for category in ('customer/interviews', '.', '..', './sources', 'sources/',
+                         '/sources', 'customer\\interviews', 'bad\x00name'):
+            with self.subTest(category=category):
+                self.profile(raw_categories=[category])
+                result = self.run_cli('status')
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('raw_categories', result.stderr)
+
+    def test_raw_defaults_preserve_legacy_materials_and_custom_root(self):
+        (self.root / 'raw').rename(self.root / 'evidence')
+        source = self.write('evidence/observations/capture.md', '# Observation\n')
+        self.profile(raw_root='evidence')
+        before = source.read_bytes()
+        self.assertEqual(self.resolved_raw_categories(), ['sources', 'research'])
+        result = self.run_cli('status')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(source.read_bytes(), before)
+        self.assertFalse((self.root / 'raw').exists())
+        self.assertFalse((self.root / 'evidence/sources').exists())
 
     def resolved_views(self):
         import subprocess

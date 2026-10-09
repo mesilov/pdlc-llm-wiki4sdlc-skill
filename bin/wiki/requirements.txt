@@ -1,0 +1,2 @@
+# YAML parser for raw-lint only; other wiki commands use the standard library.
+PyYAML==6.0.3

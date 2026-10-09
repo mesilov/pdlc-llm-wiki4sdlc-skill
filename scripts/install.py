@@ -58,7 +58,7 @@ def select_agent(agent: str | None, claude: bool):
 def installation_plan(root: Path, init_wiki: bool, claude: bool, managed):
     if init_wiki:
         required = [Path('templates/wiki') / name for name in (
-            'wiki.config.json', 'raw/README.md', 'knowledge/SCHEMA.md',
+            'wiki.config.json', 'raw/README.md', 'raw/sources/README.md', 'raw/research/README.md', 'knowledge/SCHEMA.md',
             'knowledge/index.md', 'knowledge/GLOSSARY.md', 'knowledge/synthesis.md',
             'knowledge/ASSUMPTIONS.md', 'knowledge/OPEN-QUESTIONS.md', 'knowledge/log.md')]
         for relative in required:

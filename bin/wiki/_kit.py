@@ -52,7 +52,7 @@ def required_resources():
     required = [Path('skills') / name / 'SKILL.md' for name in SKILLS]
     required.extend(Path('skills/wiki-query/references') / name for name in (
         'contract.md', 'profile.md', 'glossary.md', 'pdlc.md', 'writing.md',
-        'traceability.md', 'metadata.md'))
+        'traceability.md', 'metadata.md', 'raw.md'))
     required.extend(Path('skills/wiki-query/references/utr-source') / name for name in (
         'skills/simple-russian/SKILL.source.md',
         'skills/simple-russian/references/checklist.md',
@@ -61,7 +61,7 @@ def required_resources():
         'evals/utr_lint.py', 'evals/md_blocks.py', 'LICENSE', 'manifest.json'))
     required.extend(Path('bin/wiki') / name for name in (
         '_core.py', '_trace.py', '_doctor.py', '_forge.py', 'lint', 'status', 'find-orphans', 'affected', 'trace', 'doctor',
-        '_kit.py', '_update.py', 'update'))
+        '_kit.py', '_update.py', 'update', '_okf.py', '_raw.py', 'raw-lint', 'requirements.txt'))
     return required
 
 

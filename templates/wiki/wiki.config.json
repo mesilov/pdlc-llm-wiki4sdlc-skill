@@ -1,5 +1,6 @@
 {
   "project_name": "Project",
   "language": "ru",
-  "openspec_root": null
+  "openspec_root": null,
+  "raw_categories": ["sources", "research"]
 }
