@@ -153,6 +153,9 @@ def main():
     except (ValueError, OSError) as error:
         print(f'Ошибка установки: {error}', file=sys.stderr)
         return 2
+    except KeyboardInterrupt:
+        print('\nУстановка прервана.', file=sys.stderr)
+        return 130
 
 
 if __name__ == '__main__':

@@ -50,7 +50,7 @@ class InstallAgentsTest(unittest.TestCase):
         self.assertEqual(len(list(canonical.glob('wiki-*/SKILL.md'))), 8)
         for name in self.installer.SKILLS:
             source = ROOT / 'skills' / name
-            for path in self.installer.source_files(source):
+            for path in self.installer.source_files(source, ROOT):
                 self.assertEqual((canonical / name / path.relative_to(source)).read_bytes(),
                                  path.read_bytes())
             if agent == 'claude':
