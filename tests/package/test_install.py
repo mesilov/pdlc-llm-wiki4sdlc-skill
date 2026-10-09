@@ -227,6 +227,7 @@ class InstallTest(unittest.TestCase):
         doctor = self.target / 'bin/wiki/doctor'
         self.assertTrue(os.access(doctor, os.X_OK))
         self.assertTrue((self.target / 'bin/wiki/_doctor.py').is_file())
+        self.assertTrue((self.target / 'bin/wiki/_forge.py').is_file())
         before = {p: (p.read_bytes(), p.stat().st_mtime_ns)
                   for p in self.target.rglob('*') if p.is_file()}
         env = {**os.environ, 'HOME': str(self.target.parent / 'empty-home'),
@@ -236,6 +237,9 @@ class InstallTest(unittest.TestCase):
                                 cwd=self.target, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(json.loads(result.stdout)['exit_code'], 0)
+        checks = {check['id']: check for check in json.loads(result.stdout)['checks']}
+        self.assertEqual(checks['forge.target']['status'], 'warning')
+        self.assertEqual(checks['forge.write']['status'], 'skipped')
         after = {p: (p.read_bytes(), p.stat().st_mtime_ns)
                  for p in self.target.rglob('*') if p.is_file()}
         self.assertEqual(before, after)
@@ -244,13 +248,14 @@ class InstallTest(unittest.TestCase):
         kit = Path(self.temp.name) / 'incomplete doctor kit'
         for directory in ('scripts', 'skills', 'bin', 'templates'):
             shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
-        for name in ('bin/wiki/doctor', 'bin/wiki/_doctor.py'):
+        for name in ('bin/wiki/doctor', 'bin/wiki/_doctor.py', 'bin/wiki/_forge.py'):
             with self.subTest(resource=name):
                 path = kit / name
-                original = path.read_bytes()
-                path.unlink()
+                original = path.read_bytes() if path.exists() else None
+                path.unlink(missing_ok=True)
                 result = self.install('--init-wiki', kit=kit)
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                 self.assertIn('Неполный комплект', result.stderr)
                 self.assertEqual(list(self.target.iterdir()), [])
-                path.write_bytes(original)
+                if original is not None:
+                    path.write_bytes(original)

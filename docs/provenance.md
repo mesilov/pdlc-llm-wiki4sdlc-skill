@@ -165,3 +165,34 @@ shared и пользовательские каталоги OpenCode — с
 подтверждает читаемость файла и наличие name/description, но не заменяет
 проверку YAML, загрузки/разрешений агента, полноты профиля или смысла навыка.
 Разные workflows и delivery settings не сводятся к фиксированному числу файлов.
+
+## Самодиагностика forge — 2026-10-09
+
+Реализация issue #12 расширяет doctor локальной проверкой Git remote и
+клиента, а также явными сетевыми проверками. Синтаксис API и поля ответов
+сверены с первичными источниками:
+
+- [gh api](https://cli.github.com/manual/gh_api): явные `--hostname` и
+  `--method GET`; команда не полагается на подстановку текущего repository.
+- [glab api](https://docs.gitlab.com/cli/api/): выбор хоста, GET и percent-encoded
+  GitLab project path; чтение одной страницы с `per_page=1` достаточно для
+  проверки доступа, это не сбор полного списка.
+- [GitLab CLI configuration](https://docs.gitlab.com/cli/configuration/):
+  ambient `API_PROTOCOL`/`GITLAB_SUBFOLDER` могут менять адрес запроса; doctor
+  исключает эти переопределения, сохраняя настройки выбранного хоста, и
+  отключает `GLAB_ENABLE_CI_AUTOLOGIN`, чтобы не запускать login в CI.
+- [GitHub repositories API](https://docs.github.com/en/rest/repos/repos#get-a-repository):
+  identity, `has_issues` и `permissions`.
+- Вывод версии `gh` из пакетов [Debian](https://github.com/cli/cli/issues/12640)
+  и [Ubuntu](https://github.com/cli/cli/issues/13124) может содержать пробелы
+  в build annotation. Doctor принимает этот формат, но публикует только
+  числовую версию, без содержимого annotation.
+- [GitLab projects API](https://docs.gitlab.com/api/projects/):
+  `path_with_namespace`, `web_url`, включение функций и access levels.
+
+Из документов выведено использование раздельных GET проверок авторизации,
+репозитория и списков issue/PR/MR. Заявленные API права не являются доказательством
+выполненной записи. Проверки CLI/API через fixtures не доказывают работу реального
+GitLab хоста; реальный read-only запуск проверен с GitHub и `gh 2.88.1`.
+Исходные внешние ссылки хранятся здесь, а устанавливаемый профиль содержит
+самодостаточные инструкции и локальные ссылки комплекта.

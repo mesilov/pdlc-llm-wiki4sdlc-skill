@@ -164,8 +164,10 @@ bin/wiki/affected 'понятие или путь'
 ```
 
 `doctor` проверяет пути профиля, доступность `openspec --version` и OpenSpec
-skills для Codex, Claude Code и OpenCode. Он показывает найденные пути и
-подсказки, ничего не устанавливает и не исправляет.
+skills для Codex, Claude Code и OpenCode, Git remote целевого проекта и
+запуск соответствующего `gh` (GitHub) или `glab` (GitLab). По умолчанию
+проверка клиентов локальная: авторизация и API не проверяются. Команда
+показывает найденные пути и подсказки, ничего не устанавливает и не исправляет.
 
 ```bash
 bin/wiki/doctor --require-openspec --tools codex,claude,opencode
@@ -176,13 +178,34 @@ bin/wiki/doctor --project /path/to/project --json
 При заданном `openspec_root` либо `--require-openspec` это ошибка;
 строгий режим также требует подключённый каталог.
 `--tools codex` ограничивает проверку одним агентом; `--timeout 5` задаёт
-таймаут запуска CLI в секундах. Коды doctor: 0 — без ошибок, 1 — проблемы
+таймаут каждого запуска Git или CLI в секундах. Коды doctor: 0 — без ошибок, 1 — проблемы
 готовности, 2 — неверный вызов, корень или профиль. Warnings допускают код 0.
 
 Область проверки и каталоги skills описаны в
 [профиле](skills/wiki-query/references/profile.md#самодиагностика).
 Наличие файлов skills не подтверждает их загрузку и разрешения активной
 сессии или полноту workflow profile.
+
+Для проверки авторизации и чтения целевого репозитория, issue и PR/MR
+явно включите сеть:
+
+```bash
+bin/wiki/doctor --forge-network
+bin/wiki/doctor --require-forge --forge-remote origin --json
+bin/wiki/doctor --forge-network --forge-remote upstream --forge-provider gitlab
+```
+
+`--require-forge` включает сетевую проверку и считает отсутствие нужного
+клиента, авторизации или доступа ошибкой. Без него проблемы интеграции —
+warnings и не блокируют локальную wiki. Remote выбирается автоматически
+только при единственном варианте. Для неизвестного хоста, включая GitHub
+Enterprise и self-hosted GitLab, provider задаётся явно.
+
+Проверка выполняет только чтение. Заявленные API права показываются отдельно;
+создание issue/PR/MR, push и merge не проверяются. Секреты и сырой вывод
+клиентов не включаются в отчёт. Подробности — в
+[профиле](skills/wiki-query/references/profile.md#клиенты-github-и-gitlab);
+основания API — в [provenance](docs/provenance.md#самодиагностика-forge--2026-10-09).
 
 При подключении OpenSpec запустите трассировку:
 
