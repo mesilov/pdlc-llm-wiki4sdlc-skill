@@ -7,6 +7,7 @@ import io
 import json
 import os
 import re
+import stat
 import sys
 import tarfile
 import tempfile
@@ -144,20 +145,26 @@ def current_file(path: Path, root: Path) -> tuple[bytes, int] | None:
         return None
     if not path.is_file():
         raise ValueError(f'Конфликт: путь не является обычным файлом: {path.relative_to(root)}')
-    return path.read_bytes(), path.stat().st_mode & 0o777
+    return path.read_bytes(), stat.S_IMODE(path.stat().st_mode)
 
 
 def update_plan(root: Path, files: dict, installed: dict | None, force: bool) -> tuple[dict, dict]:
     previous = installed['files'] if installed else {}
+    modes = installed.get('modes', {}) if installed else {}
     changes, originals = {}, {}
     for name in sorted(set(previous) | set(files)):
         original = current_file(root / name, root)
         desired = files.get(name)
         if original == desired:
             continue
-        if original is not None and (desired is None or original[0] != desired[0]):
+        if original is not None:
             digest = hashlib.sha256(original[0]).hexdigest()
-            if digest != previous.get(name) and not force:
+            # Older manifests lack modes: refuse an unverified mode change or
+            # deletion rather than silently replacing access restrictions.
+            baseline_mode = modes.get(name)
+            if baseline_mode is None and desired is not None:
+                baseline_mode = desired[1]
+            if (digest != previous.get(name) or original[1] != baseline_mode) and not force:
                 raise ValueError(f'Конфликт: локально изменённый файл {name}; '
                                  'для замены с backup используйте --force')
         changes[name], originals[name] = desired, original

@@ -209,6 +209,101 @@ class UpdateTest(unittest.TestCase):
         self.assertEqual((backups[0] / 'skill-version.json').read_bytes(), old_manifest)
         self.assertIn('.wiki-kit-backups', output)
 
+    def test_permission_only_local_edit_blocks_normal_update(self):
+        entry = self.root / 'bin/wiki/status'
+        entry.chmod(0o600)
+        before = snapshot(self.root)
+        code, _, error = self.run_update(answer='да\n')
+        self.assertEqual(code, 2)
+        self.assertIn('bin/wiki/status', error)
+        self.assertEqual(snapshot(self.root), before)
+        self.assertFalse((self.root / '.wiki-kit-backups').exists())
+
+    def test_local_permissions_block_content_update_too(self):
+        (self.root / RESOURCE).chmod(0o600)
+        before = snapshot(self.root)
+        code, _, error = self.run_update(answer='да\n')
+        self.assertEqual(code, 2)
+        self.assertIn(RESOURCE, error)
+        self.assertEqual(snapshot(self.root), before)
+
+    def test_force_backs_up_locally_changed_permissions(self):
+        entry = self.root / 'bin/wiki/status'
+        content = entry.read_bytes()
+        entry.chmod(0o600)
+        code, _, error = self.run_update('--force')
+        self.assertEqual(code, 0, error)
+        backup = next((self.root / '.wiki-kit-backups').iterdir()) / 'bin/wiki/status'
+        self.assertEqual(backup.read_bytes(), content)
+        self.assertEqual(backup.stat().st_mode & 0o7777, 0o600)
+        self.assertEqual(entry.stat().st_mode & 0o7777, 0o755)
+        self.assertEqual(json.loads(self.manifest.read_text())['modes']['bin/wiki/status'], 0o755)
+
+    def test_clean_upstream_permission_change_is_allowed(self):
+        (self.remote / 'bin/wiki/status').chmod(0o644)
+        code, _, error = self.run_update(answer='да\n')
+        self.assertEqual(code, 0, error)
+        self.assertEqual((self.root / 'bin/wiki/status').stat().st_mode & 0o7777, 0o644)
+        self.assertEqual(json.loads(self.manifest.read_text())['modes']['bin/wiki/status'], 0o644)
+
+    def test_legacy_manifest_without_modes_checks_permission_mismatch(self):
+        data = json.loads(self.manifest.read_text())
+        data.pop('modes', None)
+        self.manifest.write_text(json.dumps(data))
+        (self.root / 'bin/wiki/status').chmod(0o600)
+        before = snapshot(self.root)
+        code, _, error = self.run_update(answer='да\n')
+        self.assertEqual(code, 2)
+        self.assertIn('bin/wiki/status', error)
+        self.assertEqual(snapshot(self.root), before)
+
+    def test_legacy_manifest_without_modes_accepts_matching_permissions(self):
+        data = json.loads(self.manifest.read_text())
+        data.pop('modes', None)
+        self.manifest.write_text(json.dumps(data))
+        code, _, error = self.run_update(answer='да\n')
+        self.assertEqual(code, 0, error)
+        self.assertIn('modes', json.loads(self.manifest.read_text()))
+
+    def test_legacy_manifest_needs_force_to_delete_file_with_unknown_mode(self):
+        import hashlib
+        name = 'bin/wiki/obsolete'
+        entry = self.root / name
+        entry.write_text('old managed\n')
+        entry.chmod(0o600)
+        data = json.loads(self.manifest.read_text())
+        data.pop('modes', None)
+        data['files'][name] = hashlib.sha256(entry.read_bytes()).hexdigest()
+        self.manifest.write_text(json.dumps(data))
+        before = snapshot(self.root)
+        code, _, error = self.run_update(answer='да\n')
+        self.assertEqual(code, 2)
+        self.assertIn(name, error)
+        self.assertEqual(snapshot(self.root), before)
+        code, _, error = self.run_update('--force')
+        self.assertEqual(code, 0, error)
+        self.assertFalse(entry.exists())
+        backup = next((self.root / '.wiki-kit-backups').iterdir()) / name
+        self.assertEqual(backup.read_text(), 'old managed\n')
+        self.assertEqual(backup.stat().st_mode & 0o7777, 0o600)
+
+    def test_removed_file_with_locally_changed_permissions_blocks_update(self):
+        import hashlib
+        name = 'bin/wiki/obsolete'
+        entry = self.root / name
+        entry.write_text('old managed\n')
+        entry.chmod(0o644)
+        data = json.loads(self.manifest.read_text())
+        data['files'][name] = hashlib.sha256(entry.read_bytes()).hexdigest()
+        data.setdefault('modes', {})[name] = 0o644
+        self.manifest.write_text(json.dumps(data))
+        entry.chmod(0o600)
+        before = snapshot(self.root)
+        code, _, error = self.run_update(answer='да\n')
+        self.assertEqual(code, 2)
+        self.assertIn(name, error)
+        self.assertEqual(snapshot(self.root), before)
+
     def test_profile_corpus_policies_and_unknown_files_are_preserved(self):
         (self.root / 'wiki.config.json').write_text('{"language":"en","knowledge_root":"docs/wiki"}\n')
         (self.root / 'knowledge/domains').mkdir()
@@ -229,6 +324,7 @@ class UpdateTest(unittest.TestCase):
         data = json.loads(self.manifest.read_text())
         import hashlib
         data['files']['bin/wiki/obsolete'] = hashlib.sha256(obsolete.read_bytes()).hexdigest()
+        data.setdefault('modes', {})['bin/wiki/obsolete'] = obsolete.stat().st_mode & 0o7777
         self.manifest.write_text(json.dumps(data))
         (self.remote / 'skills/wiki-query/references/new.md').write_text('new resource\n')
         code, _, error = self.run_update('--force')
@@ -345,6 +441,7 @@ class UpdateTest(unittest.TestCase):
         self.assertEqual(self.calls, [])
 
     def test_write_error_restores_pre_update_files(self):
+        (self.root / 'bin/wiki/status').chmod(0o600)
         before = snapshot(self.root)
         original = self.updater.atomic_write
         attempts = 0

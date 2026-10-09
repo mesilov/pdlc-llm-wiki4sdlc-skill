@@ -123,6 +123,12 @@ def validate_manifest(manifest):
     for relative, digest in files.items():
         if not managed_path(relative) or not isinstance(digest, str) or not re.fullmatch(r'[0-9a-f]{64}', digest):
             raise ValueError(invalid + f': ресурс {relative!r}')
+    if 'modes' in manifest:
+        modes = manifest['modes']
+        if not isinstance(modes, dict) or modes.keys() != files.keys():
+            raise ValueError(invalid + ': modes должны соответствовать files')
+        if any(type(mode) is not int or not 0 <= mode <= 0o7777 for mode in modes.values()):
+            raise ValueError(invalid + ': права файла')
     return manifest
 
 
@@ -136,6 +142,7 @@ def make_manifest(files, repository, channel, commit, version=None, source_dirty
         'source_dirty': source_dirty,
         'files': {relative: hashlib.sha256(data).hexdigest()
                   for relative, (data, _mode) in sorted(files.items())},
+        'modes': {relative: mode for relative, (_data, mode) in sorted(files.items())},
     }
     return validate_manifest(manifest)
 

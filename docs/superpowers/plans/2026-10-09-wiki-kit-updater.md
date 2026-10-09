@@ -19,7 +19,8 @@
 - [x] Добавить `make_manifest(files, repository, channel, commit, version=None,
   source_dirty=False)`, `manifest_bytes`, `read_manifest(root)`, `source_identity(kit)`.
   Constants: `MANIFEST='skill-version.json'`, `REPOSITORY='mesilov/pdlc-llm-wiki4sdlc-skill'`.
-  Manifest schema_version=1, files: SHA-256, channel main/release, commit SHA или null.
+  Manifest schema_version=1, files: SHA-256, modes: Unix-права,
+  channel main/release, commit SHA или null. Прежний manifest без modes читается.
 - [x] Manifest проверяется до записи; идентичная установка не меняет mtime.
   `check_destination(path, root, alias=False)` отклоняет traversal и symlinks.
 - [x] Повторить install tests; проверить в отдельном временном проекте.
@@ -72,8 +73,11 @@
 - [x] Пройти независимый code review, исправить actionable замечания, повторить
   затронутые проверки.
 - [x] Staged scope/check; commit, push и PR в dev, milestone 0.1.0.
-  Связать issue #7, приложить PR к текущему чату. Не выполнять merge/release.
+  Связать issue #7, приложить PR к текущему чату. Публикация релиза не входит в scope.
 
 Поставка: [PR #15](https://github.com/mesilov/pdlc-llm-wiki4sdlc-skill/pull/15)
 в `dev`, milestone `0.1.0`, явно связан с issue #7 и приложен к чату.
 Результаты проверок: [skill-validation.md](../../skill-validation.md#обновление-установленного-комплекта--2026-10-09).
+
+После первоначальной поставки пользователь поручил merge в `dev`. Перед merge
+исправлено замечание GitHub-review о правах файлов и пройдено повторное review.

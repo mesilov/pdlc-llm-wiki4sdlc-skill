@@ -53,11 +53,13 @@ class InstallTest(unittest.TestCase):
         self.assertEqual(manifest['repository'], 'mesilov/pdlc-llm-wiki4sdlc-skill')
         self.assertEqual(manifest['channel'], 'main')
         managed = manifest['files']
+        self.assertEqual(manifest['modes'].keys(), managed.keys())
         for command in ('_kit.py', '_update.py', 'update'):
             self.assertIn(f'bin/wiki/{command}', managed)
         self.assertEqual(sum(path.endswith('/SKILL.md') for path in managed), 8)
         for relative, digest in managed.items():
             self.assertEqual(digest, hashlib.sha256((self.target / relative).read_bytes()).hexdigest())
+            self.assertEqual(manifest['modes'][relative], (self.target / relative).stat().st_mode & 0o7777)
             self.assertTrue(relative.startswith(('.agents/skills/wiki-', 'bin/wiki/')), relative)
             self.assertNotIn('__pycache__', relative)
         self.assertNotIn('wiki.config.json', managed)
@@ -226,7 +228,12 @@ class InstallTest(unittest.TestCase):
                  ('files', {'.agents/skills/other/SKILL.md': '0' * 64}),
                  ('files', {'bin/wiki/../../outside': '0' * 64}),
                  ('files', {'bin/wiki//lint': '0' * 64}),
-                 ('files', {'bin/wiki/__pycache__/cache.pyc': '0' * 64})]
+                 ('files', {'bin/wiki/__pycache__/cache.pyc': '0' * 64}),
+                 ('modes', []), ('modes', {}),
+                 ('modes', {'bin/wiki/lint': True}),
+                 ('modes', {'bin/wiki/lint': -1}),
+                 ('modes', {'bin/wiki/lint': 0o10000}),
+                 ('modes', {'bin/wiki/other': 0o755})]
         manifest = self.target / 'skill-version.json'
         for field, value in cases:
             with self.subTest(field=field, value=value):
@@ -332,6 +339,19 @@ class InstallTest(unittest.TestCase):
         self.assertFalse((self.target / '.agents').exists())
         self.assertFalse((self.target / 'knowledge').exists())
         self.assertEqual((self.target / 'AGENTS.md').read_text(), 'local policy\n')
+
+    def test_matching_file_with_different_mode_blocks_install_before_any_write(self):
+        entry = self.target / 'bin/wiki/status'
+        entry.parent.mkdir(parents=True)
+        entry.write_bytes((ROOT / 'bin/wiki/status').read_bytes())
+        entry.chmod(0o600)
+        result = self.install('--init-wiki')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Конфликт', result.stderr)
+        self.assertEqual(entry.stat().st_mode & 0o7777, 0o600)
+        self.assertFalse((self.target / 'skill-version.json').exists())
+        self.assertFalse((self.target / '.agents').exists())
+        self.assertFalse((self.target / 'knowledge').exists())
 
     def test_refuses_symlink_destination_without_writing_outside(self):
         outside = Path(self.temp.name) / 'outside'

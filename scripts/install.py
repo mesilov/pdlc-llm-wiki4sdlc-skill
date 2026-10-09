@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import stat
 import sys
 from pathlib import Path
 
@@ -80,6 +81,9 @@ def installation_plan(root: Path, init_wiki: bool, claude: bool, managed):
         if target.exists():
             if not target.is_file() or target.read_bytes() != source.read_bytes():
                 raise ValueError(f'Конфликт: существующий файл не будет перезаписан: {target}')
+            relative = target.relative_to(root).as_posix()
+            if relative in managed and stat.S_IMODE(target.stat().st_mode) != managed[relative][1]:
+                raise ValueError(f'Конфликт: права существующего файла отличаются: {target}')
         else:
             copies.append((source, target))
     links = []
