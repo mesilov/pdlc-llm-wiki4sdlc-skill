@@ -5,12 +5,26 @@ from __future__ import annotations
 import argparse
 import os
 import shutil
+import stat
 import sys
 from pathlib import Path
 
 KIT = Path(__file__).resolve().parents[1]
-SKILLS = ('wiki-audit', 'wiki-decide', 'wiki-ingest', 'wiki-lint',
-          'wiki-merge', 'wiki-query', 'wiki-research', 'wiki-update')
+sys.dont_write_bytecode = True
+sys.path.insert(0, str(KIT / 'bin/wiki'))
+# Validate the helper before importing it; the ordinary inventory validates
+# every remaining resource once this bootstrap dependency is available.
+helper = KIT / 'bin/wiki/_kit.py'
+for component in (KIT / 'bin', KIT / 'bin/wiki', helper):
+    if component.is_symlink():
+        print(f'Ошибка установки: запись через symlink запрещена: {component}', file=sys.stderr)
+        raise SystemExit(2)
+if not helper.is_file():
+    print('Ошибка установки: Неполный комплект: bin/wiki/_kit.py', file=sys.stderr)
+    raise SystemExit(2)
+from _kit import (MANIFEST, REPOSITORY, SKILLS, check_destination, kit_files,
+                  make_manifest, manifest_bytes, read_manifest, source_files, source_identity)
+
 AGENTS = {'claude': 'Claude Code', 'codex': 'Codex', 'opencode': 'OpenCode'}
 
 
@@ -41,57 +55,35 @@ def select_agent(agent: str | None, claude: bool):
         print('Некорректный выбор. Введите 1, 2, 3, claude, codex или opencode.')
 
 
-def source_files(directory: Path):
-    return sorted(p for p in directory.rglob('*') if p.is_file() and
-                  '__pycache__' not in p.parts and p.suffix != '.pyc')
-
-
-def check_destination(path: Path, root: Path, *, alias=False):
-    current = path.parent if alias else path
-    while current != root:
-        if current.is_symlink():
-            raise ValueError(f'Конфликт: запись через symlink запрещена: {current}')
-        if current != path and current.exists() and not current.is_dir():
-            raise ValueError(f'Конфликт: родитель не является каталогом: {current}')
-        current = current.parent
-
-
-def installation_plan(root: Path, init_wiki: bool, claude: bool):
-    required = [Path('skills') / name / 'SKILL.md' for name in SKILLS]
-    required.extend(Path('skills/wiki-query/references') / name
-                    for name in ('contract.md', 'profile.md', 'glossary.md', 'pdlc.md', 'writing.md', 'traceability.md', 'metadata.md'))
-    required.extend(Path('skills/wiki-query/references/utr-source') / name for name in (
-        'skills/simple-russian/SKILL.source.md',
-        'skills/simple-russian/references/checklist.md',
-        'skills/simple-russian/references/use-cases.md',
-        'examples/before-after-ru.md', 'examples/before-after.md',
-        'evals/utr_lint.py', 'evals/md_blocks.py', 'LICENSE', 'manifest.json'))
-    required.extend(Path('bin/wiki') / name
-                    for name in ('_core.py', '_trace.py', '_doctor.py', 'lint', 'status', 'find-orphans', 'affected', 'trace', 'doctor'))
+def installation_plan(root: Path, init_wiki: bool, claude: bool, managed):
     if init_wiki:
-        required.extend(Path('templates/wiki') / name for name in (
+        required = [Path('templates/wiki') / name for name in (
             'wiki.config.json', 'raw/README.md', 'knowledge/SCHEMA.md',
             'knowledge/index.md', 'knowledge/GLOSSARY.md', 'knowledge/synthesis.md',
-            'knowledge/ASSUMPTIONS.md', 'knowledge/OPEN-QUESTIONS.md', 'knowledge/log.md'))
-    for relative in required:
-        if not (KIT / relative).is_file():
-            raise ValueError(f'Неполный комплект: {relative}')
+            'knowledge/ASSUMPTIONS.md', 'knowledge/OPEN-QUESTIONS.md', 'knowledge/log.md')]
+        for relative in required:
+            check_destination(KIT / relative, KIT)
+            if not (KIT / relative).is_file():
+                raise ValueError(f'Неполный комплект: {relative}')
     files = []
-    for name in SKILLS:
-        folder = KIT / 'skills' / name
-        files.extend((source, root / '.agents/skills' / name / source.relative_to(folder))
-                     for source in source_files(folder))
-    files.extend((source, root / 'bin/wiki' / source.relative_to(KIT / 'bin/wiki'))
-                 for source in source_files(KIT / 'bin/wiki'))
+    for relative in managed:
+        if relative.startswith('.agents/skills/'):
+            source = KIT / 'skills' / Path(relative).relative_to('.agents/skills')
+        else:
+            source = KIT / relative
+        files.append((source, root / relative))
     if init_wiki:
         folder = KIT / 'templates/wiki'
-        files.extend((source, root / source.relative_to(folder)) for source in source_files(folder))
+        files.extend((source, root / source.relative_to(folder)) for source in source_files(folder, KIT))
     copies = []
     for source, target in files:
         check_destination(target, root)
         if target.exists():
             if not target.is_file() or target.read_bytes() != source.read_bytes():
                 raise ValueError(f'Конфликт: существующий файл не будет перезаписан: {target}')
+            relative = target.relative_to(root).as_posix()
+            if relative in managed and stat.S_IMODE(target.stat().st_mode) != managed[relative][1]:
+                raise ValueError(f'Конфликт: права существующего файла отличаются: {target}')
         else:
             copies.append((source, target))
     links = []
@@ -115,6 +107,7 @@ def main():
     parser.add_argument('--agent', choices=AGENTS,
                         help='target agent; otherwise prompt in a terminal, or use codex without a TTY')
     parser.add_argument('--claude', action='store_true', help='compatibility alias for --agent claude')
+    parser.add_argument('--channel', choices=('main', 'release'), help='update channel; retain installed channel by default')
     parser.add_argument('--dry-run', action='store_true', help='check conflicts and show planned writes')
     args = parser.parse_args()
     root = args.project.resolve()
@@ -127,7 +120,18 @@ def main():
         if agent is None:
             print('Установка отменена. Файлы не изменены.')
             return 0
-        copies, links = installation_plan(root, args.init_wiki, agent == 'claude')
+        existing = read_manifest(root)
+        if existing and existing['repository'] != REPOSITORY:
+            raise ValueError('Конфликт: skill-version.json относится к другому repository')
+        managed = kit_files(KIT)
+        if existing and set(existing['files']) - set(managed):
+            raise ValueError('Конфликт: для удаления старых ресурсов используйте bin/wiki/update')
+        channel = args.channel or (existing['channel'] if existing else 'main')
+        manifest = make_manifest(managed, REPOSITORY, channel, **source_identity(KIT))
+        content = manifest_bytes(manifest)
+        manifest_path = root / MANIFEST
+        write_manifest = not manifest_path.exists() or manifest_path.read_bytes() != content
+        copies, links = installation_plan(root, args.init_wiki, agent == 'claude', managed)
         print(f'Агент: {AGENTS[agent]}')
         print(f'Проект: {root}')
         print('Навыки: .agents/skills/; CLI: bin/wiki/')
@@ -144,6 +148,10 @@ def main():
             if not args.dry_run:
                 alias.parent.mkdir(parents=True, exist_ok=True)
                 alias.symlink_to(relative, target_is_directory=True)
+        if write_manifest:
+            print(f'{"План" if args.dry_run else "Запись"}: {MANIFEST}')
+            if not args.dry_run:
+                manifest_path.write_bytes(content)
         print(f'Файлов: {len(copies)}; ссылок: {len(links)}. AGENTS.md задаётся проектом.')
         return 0
     except (ValueError, OSError) as error:

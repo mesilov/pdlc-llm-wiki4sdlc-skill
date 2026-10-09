@@ -4,6 +4,15 @@
 
 ### Added
 
+- Проверка и обновление полного установленного wiki-набора с GitHub:
+  `bin/wiki/update --check`, интерактивное обновление и `--force` без вопроса,
+  каналы `main`/`release`, отдельный `skill-version.json` с хешами и правами
+  файлов, backup и восстановление при ошибке записи. Профиль и корпус
+  сохраняются; старые установки получают
+  manifest через `scripts/update.py`. Навыки предлагают доступное обновление
+  после одной разрешённой проверки в начале сессии.
+  ([#7](https://github.com/mesilov/pdlc-llm-wiki4sdlc-skill/issues/7)).
+
 - Выбор агента при установке: меню для Claude Code, Codex и OpenCode или
   параметр `--agent claude|codex|opencode` для запуска без меню. Полный набор
   навыков устанавливается в `.agents/skills/`; для Claude Code добавляются
