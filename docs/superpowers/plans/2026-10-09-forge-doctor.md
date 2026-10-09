@@ -8,7 +8,7 @@
 
 ## Task 1: Клиенты, API и интеграция установки
 
-Файлы: bin/wiki/_forge.py (новый), bin/wiki/_doctor.py, scripts/install.py, tests/wiki_harness/test_forge_doctor.py (новый), tests/package/test_install.py.
+Файлы: bin/wiki/_forge.py (новый), bin/wiki/_doctor.py, bin/wiki/_kit.py (inventory установки/обновления), tests/wiki_harness/test_forge_doctor.py (новый), tests/package/test_install.py.
 
 - [ ] Написать failing CLI tests: стандартный doctor без сетевых команд; явный --forge-network с GitHub/GitLab fixtures; --require-forge не скрывает отсутствие доступа. Команда: PYTHONDONTWRITEBYTECODE=1 python3 -m unittest tests.wiki_harness.test_forge_doctor -v. До реализации ожидается failure из-за отсутствия flags/checks.
 - [ ] Реализовать локальный target selection/remote parser, безопасный bounded subprocess и явный provider. Протокол: check_forge(root, checks, add, *, remote, provider, network, required, timeout) добавляет forge.target, forge.cli, forge.auth, forge.repository, forge.issues, forge.pull_requests, forge.permissions, forge.write.
