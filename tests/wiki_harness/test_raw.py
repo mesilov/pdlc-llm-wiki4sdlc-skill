@@ -198,6 +198,27 @@ custom: {<<: *one, answer: explicit}
         self.assertEqual(self.report()['checked'], [])
         self.assertEqual(len(self.report(str(source.relative_to(self.root)))['checked']), 1)
 
+    def test_nested_raw_categories_are_profile_errors_before_unit_scan(self):
+        self.unit(category='customer/interviews')
+        for category in ('customer/interviews', '.'):
+            with self.subTest(category=category):
+                self.write('wiki.config.json', json.dumps({'raw_categories': [category]}))
+                before = {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob('*') if p.is_file()}
+                report = self.report(exit_code=2)
+                self.assertIn('raw_categories', report['error'])
+                self.assertEqual(report['checked'], [])
+                self.assertEqual(report['findings'], [])
+                self.assertEqual(before, {p.relative_to(self.root): p.read_bytes() for p in self.root.rglob('*') if p.is_file()})
+
+    def test_custom_single_component_categories_accept_nondefault_names(self):
+        for category in ('customer.interviews', 'customer interviews', 'материалы'):
+            with self.subTest(category=category):
+                self.unit(HEADER.replace('Source material', 'Interview'), category=category)
+                self.write('wiki.config.json', json.dumps({'raw_categories': [category]}))
+                report = self.report()
+                self.assertEqual(report['summary']['checked'], 1)
+                self.assertIn('/' + category + '/', report['checked'][0])
+
     def test_explicit_units_limit_scope(self):
         good = self.unit()
         self.unit('# Bad\n', name='2026-10-09-invalid')

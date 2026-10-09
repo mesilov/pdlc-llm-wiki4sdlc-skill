@@ -37,6 +37,15 @@ class PortableProfileTest(WikiCliTestCase):
                 self.profile(raw_categories=categories)
                 self.assertEqual(self.resolved_raw_categories(), categories)
 
+    def test_rejects_nested_and_root_raw_category_names(self):
+        for category in ('customer/interviews', '.', '..', './sources', 'sources/',
+                         '/sources', 'customer\\interviews', 'bad\x00name'):
+            with self.subTest(category=category):
+                self.profile(raw_categories=[category])
+                result = self.run_cli('status')
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('raw_categories', result.stderr)
+
     def test_raw_defaults_preserve_legacy_materials_and_custom_root(self):
         (self.root / 'raw').rename(self.root / 'evidence')
         source = self.write('evidence/observations/capture.md', '# Observation\n')
