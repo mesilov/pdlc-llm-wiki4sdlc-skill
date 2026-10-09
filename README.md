@@ -85,28 +85,62 @@ Views ссылаются на каноническое знание и доба�
 Нужен Python 3.10+. CLI использует стандартную библиотеку; OpenSpec необязателен.
 Для исследования нужен доступ к источникам; иначе агент сообщает ограничение.
 
-Создайте каталог целевого проекта. В checkout набора запустите предварительную проверку:
-
-```bash
-python3 scripts/install.py /path/to/project --init-wiki --dry-run
-```
-
-Установите комплект и новую wiki:
+Создайте каталог целевого проекта. В checkout набора запустите установщик:
 
 ```bash
 python3 scripts/install.py /path/to/project --init-wiki
 ```
 
-Для существующей wiki установите комплект без `--init-wiki`:
+При запуске из терминала он спросит, для какого агента установить навыки:
 
-```bash
-python3 scripts/install.py /path/to/project
+```text
+Для какого агента установить навыки?
+  1. Claude Code
+  2. Codex
+  3. OpenCode
 ```
 
-Скрипт копирует skills в `.agents/skills/`, CLI — в `bin/wiki/`.
-`--init-wiki` добавляет нейтральный корпус и `wiki.config.json`; `--claude` добавляет aliases.
+Введите номер или имя (`claude`, `codex`, `opencode`). Некорректный выбор
+повторяет вопрос. `q` отменяет запуск с кодом 0, EOF завершает его с кодом 2,
+Ctrl-C — с кодом 130; при отмене на этапе выбора файлы не изменяются.
+
+Для предварительной проверки добавьте `--dry-run`. Чтобы пропустить меню
+в терминале или выбрать агента в автоматизации, передайте `--agent`:
+
+```bash
+python3 scripts/install.py /path/to/project --agent claude --init-wiki --dry-run
+python3 scripts/install.py /path/to/project --agent codex --init-wiki --dry-run
+python3 scripts/install.py /path/to/project --agent opencode --init-wiki --dry-run
+```
+
+Уберите `--dry-run` для установки. Для существующей wiki уберите `--init-wiki`:
+
+```bash
+python3 scripts/install.py /path/to/project --agent codex
+```
+
+Скрипт копирует полный набор восьми skills в `.agents/skills/`, CLI — в `bin/wiki/`.
+Перед записью он сообщает выбранного агента, каталог проекта и целевые пути.
+
+| Агент | Каталог обнаружения навыков |
+| --- | --- |
+| Claude Code | `.claude/skills/`: относительные ссылки на `.agents/skills/` |
+| Codex | `.agents/skills/` |
+| OpenCode | `.agents/skills/`: поддерживаемый agent-compatible каталог |
+
+Схема сверена 2026-10-09 с официальной документацией
+[Claude Code](https://code.claude.com/docs/en/skills),
+[Codex](https://learn.chatgpt.com/docs/build-skills) и
+[OpenCode](https://opencode.ai/docs/skills/).
+
+Без TTY и без флагов выбора используется Codex: сохраняется прежнее копирование
+в `.agents/skills/`, stdin не читается. Старый `--claude` означает `--agent claude`
+и тоже пропускает меню; сочетание с `--agent codex` или `--agent opencode`
+отклоняется до записи. `--claude --agent claude` допустим.
+
+`--init-wiki` добавляет нейтральный корпус и `wiki.config.json`.
 Скрипт отклоняет отличающиеся файлы и symlinks до записи; одинаковые файлы пропускает.
-AGENTS.md и CI проекта скрипт не меняет.
+AGENTS.md и CI проекта скрипт не меняет; локальный `pdlc-wiki-maintainer` не копируется.
 
 Сравните локальные изменения перед переносом.
 

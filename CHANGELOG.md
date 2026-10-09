@@ -4,6 +4,11 @@
 
 ### Added
 
+- Установщик спрашивает, для какого агента установить набор: Claude Code,
+  Codex или OpenCode. Параметр `--agent` пропускает меню; без TTY сохраняется
+  прежняя установка в `.agents/skills`, старый `--claude` остаётся совместимым.
+  Dry-run показывает выбранного агента и пути до записи.
+  ([#6](https://github.com/mesilov/pdlc-llm-wiki4sdlc-skill/issues/6)).
 - Локальный навык `pdlc-wiki-maintainer`: изменения через issue и PR в `dev`,
   обязательная запись changelog внутри PR, снятие всех замечаний перед merge
   и выпуск из `dev` в защищённую `main` через GitHub milestone.
