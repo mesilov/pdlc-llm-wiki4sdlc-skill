@@ -4,6 +4,15 @@
 
 ### Added
 
+- `bin/wiki/doctor` проверяет Git remote целевого проекта и запуск `gh` или
+  `glab`. Явные `--forge-network` и `--require-forge` проверяют авторизацию
+  на нужном хосте и чтение репозитория, issue и PR/MR; `--forge-remote` и
+  `--forge-provider` позволяют выбрать remote и корпоративный provider.
+  Отчёт отделяет чтение и заявленные API права от непроверенной записи,
+  не раскрывает сырой вывод клиентов. По умолчанию сеть выключена;
+  forge остаётся необязательным для локальной wiki.
+  ([#12](https://github.com/mesilov/pdlc-llm-wiki4sdlc-skill/issues/12)).
+
 - Проверка и обновление полного установленного wiki-набора с GitHub:
   `bin/wiki/update --check`, интерактивное обновление и `--force` без вопроса,
   каналы `main`/`release`, отдельный `skill-version.json` с хешами и правами

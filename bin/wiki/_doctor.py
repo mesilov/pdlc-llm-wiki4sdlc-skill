@@ -11,6 +11,7 @@ import subprocess
 from pathlib import Path
 
 from _core import WikiError, discover_repository, is_within, wiki_layout
+from _forge import check_forge
 
 
 TOOLS = ("codex", "claude", "opencode")
@@ -27,6 +28,7 @@ NON_STRING_SCALAR = re.compile(
 LIMITATION = (
     "Проверены пути и читаемость файлов skills, а не их загрузка, разрешения "
     "и настройки активной сессии агента, полнота workflow profile или смысл спецификации."
+    " Forge: локальный CLI, авторизация и чтение API проверяются отдельно; запись не проверяется."
 )
 
 
@@ -264,11 +266,15 @@ def parse_timeout(value):
 
 
 def main_doctor(argv=None):
-    parser = argparse.ArgumentParser(description="Самодиагностика путей wiki и OpenSpec CLI/skills без исправлений")
+    parser = argparse.ArgumentParser(description="Самодиагностика wiki, OpenSpec и forge без исправлений")
     parser.add_argument("--project", type=Path, help="корень целевого проекта вместо поиска из cwd")
     parser.add_argument("--tools", type=parse_tools, default=TOOLS, help="агенты через запятую (default: codex,claude,opencode)")
     parser.add_argument("--require-openspec", action="store_true", help="требовать подключение OpenSpec, CLI и skills")
-    parser.add_argument("--timeout", type=parse_timeout, default=5.0, help="таймаут openspec --version в секундах (default: 5)")
+    parser.add_argument("--forge-network", action="store_true", help="явно разрешить read-only forge API проверки")
+    parser.add_argument("--require-forge", action="store_true", help="включить API и требовать forge auth/repository/issues/PR/MR readiness")
+    parser.add_argument("--forge-remote", help="имя Git remote целевого проекта; обязательно при нескольких remotes")
+    parser.add_argument("--forge-provider", choices=("github", "gitlab"), help="provider корпоративного хоста")
+    parser.add_argument("--timeout", type=parse_timeout, default=5.0, help="таймаут каждого вызова CLI/API в секундах (default: 5)")
     parser.add_argument("--json", action="store_true", help="структурированный отчёт")
     args = parser.parse_args(argv)
     checks = []
@@ -289,6 +295,8 @@ def main_doctor(argv=None):
         check_cli(root, checks, severity, args.timeout)
         for tool in args.tools:
             check_skills(root, tool, checks, severity)
+        check_forge(root, checks, add, remote=args.forge_remote, provider=args.forge_provider,
+                    network=args.forge_network, required=args.require_forge, timeout=args.timeout)
     summary = {status: sum(check["status"] == status for check in checks)
                for status in ("ok", "warning", "error", "skipped")}
     exit_code = 2 if invalid_profile else (1 if summary["error"] else 0)
@@ -297,7 +305,7 @@ def main_doctor(argv=None):
     if args.json:
         print(json.dumps(report, ensure_ascii=False, indent=2))
     else:
-        print("Самодиагностика wiki / OpenSpec: " + (str(root) if root is not None else "корень не найден"))
+        print("Самодиагностика wiki / OpenSpec / forge: " + (str(root) if root is not None else "корень не найден"))
         labels = {"ok": "OK", "warning": "WARN", "error": "ERROR", "skipped": "SKIP"}
         for check in checks:
             print(f"[{labels[check['status']]}] {check['id']}: {check['message']}")

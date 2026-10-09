@@ -60,7 +60,7 @@ def required_resources():
         'examples/before-after-ru.md', 'examples/before-after.md',
         'evals/utr_lint.py', 'evals/md_blocks.py', 'LICENSE', 'manifest.json'))
     required.extend(Path('bin/wiki') / name for name in (
-        '_core.py', '_trace.py', '_doctor.py', 'lint', 'status', 'find-orphans', 'affected', 'trace', 'doctor',
+        '_core.py', '_trace.py', '_doctor.py', '_forge.py', 'lint', 'status', 'find-orphans', 'affected', 'trace', 'doctor',
         '_kit.py', '_update.py', 'update'))
     return required
 
