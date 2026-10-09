@@ -1,12 +1,12 @@
 # Самодиагностика gh/glab — issue #12
 
-Основание: пользователь одобрил scope [issue #12](https://github.com/mesilov/pdlc-llm-wiki4sdlc-skill/issues/12) и поручил реализацию. Базовый doctor уже merged в dev. Новый PR направляется в dev, milestone 0.1.0; merge и релиз не входят в текущую доставку.
+Основание: пользователь одобрил scope [issue #12](https://github.com/mesilov/pdlc-llm-wiki4sdlc-skill/issues/12) и поручил реализацию. Базовый doctor уже merged в dev. Новый PR направляется в dev, milestone 0.1.0; Merge в dev выполняется по отдельному поручению пользователя; релиз остаётся отдельным этапом.
 
 ## Интерфейс и границы
 
 Doctor по умолчанию проверяет Git remote целевого checkout и соответствующий gh/glab через --version без сети. Отсутствующая интеграция даёт warning/skipped. --forge-network явно разрешает сетевые проверки; --require-forge включает их и требует подтверждённые авторизацию и чтение репозитория, issue и PR/MR. --forge-remote NAME выбирает remote, когда их несколько; --forge-provider github|gitlab явно задаёт provider корпоративного хоста. github.com и gitlab.com распознаются автоматически. Неизвестный хост не считается GitLab. Новые поля wiki.config.json не нужны.
 
-Выбор remote не использует окружение GH_REPO/GLAB_REPO и upstream wiki-набора. HTTPS и SSH URLs приводятся к безопасному host/path; credential-bearing URLs, query и fragment отклоняются без публикации исходного URL. HTTPS API port сохраняется, SSH port не переносится в API. GitHub имя проверяется без учёта регистра; local/worktree remotes учитываются, global/system remotes не выбирают цель. Несколько fetch URLs одного remote также неоднозначны. Git subprocess проверяет собственный checkout при --project, включая worktree, и не подменяет проект родительским репозиторием.
+Выбор remote не использует окружение GH_REPO/GLAB_REPO и upstream wiki-набора. HTTPS и SSH URLs приводятся к безопасному host/path; credential-bearing URLs, query и fragment отклоняются без публикации исходного URL. Нестандартный HTTPS API port сохраняется для GitLab, а для GitHub явно отклоняется как unsupported_port: реальный gh не принимает host:port в --hostname. Port 443 нормализуется; SSH port не переносится в API. GitHub имя проверяется без учёта регистра; local/worktree remotes учитываются, global/system remotes не выбирают цель. Несколько fetch URLs одного remote также неоднозначны. Git subprocess проверяет собственный checkout при --project, включая worktree, и не подменяет проект родительским репозиторием.
 
 ## Проверки и архитектура
 

@@ -174,6 +174,9 @@ shared и пользовательские каталоги OpenCode — с
 
 - [gh api](https://cli.github.com/manual/gh_api): явные `--hostname` и
   `--method GET`; команда не полагается на подстановку текущего repository.
+  Реальный `gh 2.88.1` отклоняет `--hostname ghe.example:8443` до запроса
+  (`invalid hostname`); doctor отдельно отклоняет нестандартный HTTPS-порт
+  GitHub, сохраняя нормализацию 443 и корпоративные хосты без порта.
 - [glab api](https://docs.gitlab.com/cli/api/): выбор хоста, GET и percent-encoded
   GitLab project path; чтение одной страницы с `per_page=1` достаточно для
   проверки доступа, это не сбор полного списка.

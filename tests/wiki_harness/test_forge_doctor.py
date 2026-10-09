@@ -485,6 +485,50 @@ print(json.dumps(value))
         self.assertEqual(checks["forge.target"]["host"], "code.example.test:8443")
         self.assert_read_only_calls("code.example.test:8443")
 
+    def test_github_nondefault_https_ports_are_rejected_before_client_invocation(self):
+        self.remote()
+        self.client()
+        for host in ("github.com", "ghe.example"):
+            self.git("config", "remote.origin.url", f"https://{host}:8443/team/demo.git")
+            provider = () if host == "github.com" else ("--forge-provider", "github")
+            for mode, code, status in (((), 0, "warning"), (("--forge-network",), 0, "warning"),
+                                       (("--require-forge",), 1, "error")):
+                with self.subTest(host=host, mode=mode):
+                    self.log.unlink(missing_ok=True)
+                    checks = self.report(*provider, *mode, code=code)
+                    target = checks["forge.target"]
+                    self.assertEqual(target["status"], status)
+                    self.assertEqual(target["reason"], "unsupported_port")
+                    self.assertIn("gh", target["message"])
+                    self.assertIn("443", target["message"])
+                    self.assertIn("remedy", target)
+                    for name in ("cli", "auth", "repository", "issues", "pull_requests", "permissions", "write"):
+                        self.assertEqual(checks["forge." + name]["status"], "skipped")
+                    self.assertEqual(self.calls(), [])
+
+    def test_github_enterprise_default_https_port_uses_hostname_without_port(self):
+        self.remote("https://ghe.example:443/team/demo.git")
+        responses = self.client()
+        responses["/user"]["html_url"] = "https://ghe.example/reader"
+        responses["repos/team/demo"]["html_url"] = "https://ghe.example/team/demo"
+        self.client(responses=responses)
+        checks = self.report("--forge-provider", "github", "--require-forge")
+        self.assertEqual(checks["forge.target"]["host"], "ghe.example")
+        self.assertEqual(checks["forge.repository"]["status"], "ok")
+        self.assert_read_only_calls("ghe.example")
+
+    def test_github_ssh_transport_port_does_not_become_api_port(self):
+        self.remote()
+        self.client()
+        for port in (22, 2222):
+            with self.subTest(port=port):
+                self.log.unlink(missing_ok=True)
+                self.git("config", "remote.origin.url", f"ssh://git@github.com:{port}/team/demo.git")
+                checks = self.report("--require-forge")
+                self.assertEqual(checks["forge.target"]["host"], "github.com")
+                self.assertEqual(checks["forge.repository"]["status"], "ok")
+                self.assert_read_only_calls("github.com")
+
     def test_github_identity_names_are_case_insensitive(self):
         self.remote("git@github.com:Team/Demo.git")
         responses = self.client()

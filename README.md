@@ -277,6 +277,8 @@ bin/wiki/doctor --forge-network --forge-remote upstream --forge-provider gitlab
 warnings и не блокируют локальную wiki. Remote выбирается автоматически
 только при единственном варианте. Для неизвестного хоста, включая GitHub
 Enterprise и self-hosted GitLab, provider задаётся явно.
+Нестандартный HTTPS-порт GitHub отклоняется с отдельной причиной:
+`gh api --hostname` принимает только hostname. Для GitLab HTTPS-порт сохраняется.
 
 Проверка выполняет только чтение. Заявленные API права показываются отдельно;
 создание issue/PR/MR, push и merge не проверяются. Секреты и сырой вывод

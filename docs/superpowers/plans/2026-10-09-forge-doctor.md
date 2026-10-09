@@ -30,4 +30,4 @@
 - [ ] Установка dry-run и фактическая через --agent codex --init-wiki в TemporaryDirectory; запуск installed doctor и snapshot bytes/mtime до/после.
 - [ ] Независимое review сначала соответствия issue, затем качества кода; исправить найденные проблемы и повторить соответствующие проверки.
 - [ ] git diff --check; untracked whitespace/newline; git diff --cached --check; проверить staged scope.
-- [ ] Fetch актуального dev, проверить diff, commit, push codex/wiki-forge-doctor, PR строго на dev, milestone 0.1.0, Refs #12 и Development link. Проверить сохранённый head и checks; merge не выполнять.
+- [ ] Fetch актуального dev, проверить diff, commit, push codex/wiki-forge-doctor, PR строго на dev, milestone 0.1.0, Refs #12 и Development link. Проверить сохранённый head, checks и все замечания. Merge в dev и закрытие issue выполняются по отдельному поручению пользователя.

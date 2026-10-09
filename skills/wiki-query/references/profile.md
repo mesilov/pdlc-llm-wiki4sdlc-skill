@@ -153,7 +153,9 @@ Doctor проверяет Git remote именно целевого checkout, н�
 проект без собственного Git checkout не подменяется родительским репозиторием.
 При единственном remote он выбирается автоматически. При нескольких remotes
 нужен `--forge-remote NAME`; несколько fetch URLs одного remote считаются
-неоднозначными. Учитываются HTTPS и SSH URLs, включая HTTPS API port;
+неоднозначными. Учитываются HTTPS и SSH URLs. Нестандартный HTTPS API port
+сохраняется для GitLab; для GitHub он отклоняется с `unsupported_port`,
+поскольку `gh api --hostname` не принимает порт. HTTPS port 443 нормализуется;
 SSH port не переносится в API host. Remote URLs с credentials, query или
 fragment отклоняются без публикации исходного URL. Учитываются local/worktree
 настройки Git; global/system remotes и routing-переменные среды не выбирают цель.

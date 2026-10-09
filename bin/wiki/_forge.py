@@ -171,6 +171,8 @@ def select_target(root, remote, provider, timeout, env):
         return None, "provider_mismatch", "Указанный provider не соответствует публичному хосту"
     if provider is None:
         return None, "unknown_provider", "Для корпоративного хоста укажите --forge-provider github|gitlab"
+    if provider == "github" and ":" in host:
+        return None, "unsupported_port", "GitHub CLI gh не поддерживает нестандартный HTTPS API порт; нужен порт 443"
     if provider == "github" and len(repository.split("/")) != 2:
         return None, "invalid_repository", "GitHub remote должен указывать owner/repository"
     return {"remote": remote, "provider": provider, "host": host, "repository": repository}, None, None
@@ -272,7 +274,8 @@ def check_forge(root, checks, add, *, remote, provider, network, required, timeo
         target, error, message = select_target(root, remote, provider, timeout, env)
         if error:
             record("target", severity, message, reason=error,
-                   remedy="Проверьте Git целевого проекта и fetch remote; при неоднозначности задайте --forge-remote, для корпоративного хоста --forge-provider")
+                   remedy="Используйте HTTPS remote GitHub без порта или с портом 443" if error == "unsupported_port"
+                   else "Проверьте Git целевого проекта и fetch remote; при неоднозначности задайте --forge-remote, для корпоративного хоста --forge-provider")
             return
         record("target", "ok", f"Remote {target['remote']}: {target['provider']} {target['host']}/{target['repository']}", **target)
         name = "gh" if target["provider"] == "github" else "glab"
