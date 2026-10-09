@@ -1,4 +1,6 @@
+import hashlib
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -22,11 +24,298 @@ class InstallTest(unittest.TestCase):
         return subprocess.run([sys.executable, str(kit / 'scripts/install.py'), str(self.target), *args],
                               capture_output=True, text=True)
 
+    def copy_kit(self, name='relocated kit'):
+        kit = Path(self.temp.name) / name
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        return kit
+
+    def git(self, kit, *args):
+        result = subprocess.run(['git', '-C', str(kit), *args], capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return result.stdout.strip()
+
+    def committed_kit(self):
+        kit = self.copy_kit()
+        self.git(kit, 'init', '-q')
+        self.git(kit, 'add', '.')
+        self.git(kit, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                 'commit', '-qm', 'fixture')
+        return kit
+
+    def test_manifest_tracks_complete_kit_without_corpus_or_project_config(self):
+        result = self.install('--init-wiki')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest_path = self.target / 'skill-version.json'
+        self.assertTrue(manifest_path.is_file())
+        manifest = json.loads(manifest_path.read_text())
+        self.assertEqual(manifest['schema_version'], 1)
+        self.assertEqual(manifest['repository'], 'mesilov/pdlc-llm-wiki4sdlc-skill')
+        self.assertEqual(manifest['channel'], 'main')
+        managed = manifest['files']
+        self.assertEqual(manifest['modes'].keys(), managed.keys())
+        for command in ('_kit.py', '_update.py', 'update'):
+            self.assertIn(f'bin/wiki/{command}', managed)
+        self.assertEqual(sum(path.endswith('/SKILL.md') for path in managed), 8)
+        for relative, digest in managed.items():
+            self.assertEqual(digest, hashlib.sha256((self.target / relative).read_bytes()).hexdigest())
+            self.assertEqual(manifest['modes'][relative], (self.target / relative).stat().st_mode & 0o7777)
+            self.assertTrue(relative.startswith(('.agents/skills/wiki-', 'bin/wiki/')), relative)
+            self.assertNotIn('__pycache__', relative)
+        self.assertNotIn('wiki.config.json', managed)
+        self.assertFalse(any(path.startswith(('raw/', 'knowledge/')) for path in managed))
+
+    def test_manifest_is_installed_without_corpus_and_preserves_channel(self):
+        kit = self.copy_kit()
+        result = self.install('--channel', 'release', kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = self.target / 'skill-version.json'
+        self.assertEqual(json.loads(manifest.read_text())['channel'], 'release')
+        before = manifest.stat().st_mtime_ns
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(json.loads(manifest.read_text())['channel'], 'release')
+        self.assertEqual(manifest.stat().st_mtime_ns, before)
+        self.assertFalse((self.target / 'wiki.config.json').exists())
+
+    def test_gitless_kit_does_not_claim_an_ancestor_git_commit(self):
+        kit = self.copy_kit()
+        ancestor = Path(self.temp.name)
+        self.git(ancestor, 'init', '-q')
+        (ancestor / 'unrelated.txt').write_text('unrelated\n')
+        self.git(ancestor, 'add', 'unrelated.txt')
+        self.git(ancestor, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                 'commit', '-qm', 'unrelated')
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.target / 'skill-version.json').is_file())
+        manifest = json.loads((self.target / 'skill-version.json').read_text())
+        self.assertIsNone(manifest['commit'])
+        self.assertIsNone(manifest['version'])
+        self.assertFalse(manifest['source_dirty'])
+
+    def test_clean_kit_records_commit_and_exact_release_tag(self):
+        kit = self.committed_kit()
+        self.git(kit, 'tag', 'v2.0.0')
+        (kit / 'notes.txt').write_text('untracked project notes\n')
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.target / 'skill-version.json').is_file())
+        manifest = json.loads((self.target / 'skill-version.json').read_text())
+        self.assertEqual(manifest['commit'], self.git(kit, 'rev-parse', 'HEAD'))
+        self.assertEqual(manifest['version'], 'v2.0.0')
+        self.assertFalse(manifest['source_dirty'])
+
+    def test_dirty_managed_source_has_unknown_commit(self):
+        kit = self.committed_kit()
+        source = kit / 'skills/wiki-query/SKILL.md'
+        source.write_text(source.read_text() + '\nLocal edit\n')
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue((self.target / 'skill-version.json').is_file())
+        manifest = json.loads((self.target / 'skill-version.json').read_text())
+        self.assertIsNone(manifest['commit'])
+        self.assertIsNone(manifest['version'])
+        self.assertTrue(manifest['source_dirty'])
+
+    def test_managed_file_with_cache_word_in_name_still_marks_source_dirty(self):
+        kit = self.committed_kit()
+        (kit / 'skills/wiki-query/references/__pycache__-notes.md').write_text('actual resource\n')
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((self.target / 'skill-version.json').read_text())
+        self.assertIsNone(manifest['commit'])
+        self.assertTrue(manifest['source_dirty'])
+
+    def test_ignored_managed_resources_do_not_claim_clean_commit(self):
+        kit = self.committed_kit()
+        (kit / '.gitignore').write_text('*.bin\nignored-assets/\n__pycache__/\n*.pyc\n')
+        self.git(kit, 'add', '.gitignore')
+        self.git(kit, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                 'commit', '-qm', 'ignore policy')
+        resource = kit / 'skills/wiki-query/references/ignored.bin'
+        resource.write_bytes(b'local ignored resource\x00')
+        folder = kit / 'skills/wiki-query/references/ignored-assets'
+        folder.mkdir()
+        (folder / 'notes.md').write_text('local ignored directory resource\n')
+        self.assertEqual(self.git(kit, 'status', '--porcelain'), '')
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual((self.target / '.agents/skills/wiki-query/references/ignored.bin').read_bytes(),
+                         resource.read_bytes())
+        manifest = json.loads((self.target / 'skill-version.json').read_text())
+        self.assertIsNone(manifest['commit'])
+        self.assertIsNone(manifest['version'])
+        self.assertTrue(manifest['source_dirty'])
+
+    def test_ignored_python_caches_do_not_mark_source_dirty_or_get_installed(self):
+        kit = self.committed_kit()
+        (kit / '.gitignore').write_text('__pycache__/\n*.pyc\n')
+        self.git(kit, 'add', '.gitignore')
+        self.git(kit, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+                 'commit', '-qm', 'ignore caches')
+        cache = kit / 'bin/wiki/__pycache__'
+        cache.mkdir()
+        (cache / '_kit.cpython.pyc').write_bytes(b'cache')
+        (kit / 'skills/wiki-query/cache.pyc').write_bytes(b'cache')
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        manifest = json.loads((self.target / 'skill-version.json').read_text())
+        self.assertEqual(manifest['commit'], self.git(kit, 'rev-parse', 'HEAD'))
+        self.assertFalse(manifest['source_dirty'])
+        self.assertFalse((self.target / 'bin/wiki/__pycache__').exists())
+        self.assertFalse((self.target / '.agents/skills/wiki-query/cache.pyc').exists())
+
+    def test_install_without_git_records_unknown_source_and_keeps_binary_and_modes(self):
+        kit = self.copy_kit()
+        binary = kit / 'skills/wiki-query/references/resource.bin'
+        binary.write_bytes(b'\x00\xff\x10\x80')
+        binary.chmod(0o640)
+        result = subprocess.run([sys.executable, str(kit / 'scripts/install.py'), str(self.target)],
+                                capture_output=True, text=True, env=dict(os.environ, PATH=''))
+        self.assertEqual(result.returncode, 0, result.stderr)
+        installed = self.target / '.agents/skills/wiki-query/references/resource.bin'
+        self.assertEqual(installed.read_bytes(), binary.read_bytes())
+        self.assertEqual(installed.stat().st_mode & 0o777, 0o640)
+        self.assertEqual((self.target / 'bin/wiki/update').stat().st_mode & 0o777,
+                         (kit / 'bin/wiki/update').stat().st_mode & 0o777)
+        self.assertTrue(os.access(self.target / 'bin/wiki/update', os.X_OK))
+        manifest = json.loads((self.target / 'skill-version.json').read_text())
+        self.assertIsNone(manifest['commit'])
+
+    def test_missing_inventory_helper_is_rejected_before_any_write(self):
+        kit = self.copy_kit()
+        (kit / 'bin/wiki/_kit.py').unlink()
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Неполный комплект', result.stderr)
+        self.assertEqual(list(self.target.iterdir()), [])
+
+    def test_symlink_inventory_helper_is_rejected_before_execution(self):
+        kit = self.copy_kit()
+        helper = kit / 'bin/wiki/_kit.py'
+        outside = Path(self.temp.name) / 'helper.py'
+        outside.write_text("raise RuntimeError('must not execute')\n")
+        helper.unlink()
+        helper.symlink_to(outside)
+        result = self.install(kit=kit)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('symlink', result.stderr)
+        self.assertNotIn('RuntimeError', result.stderr)
+        self.assertEqual(list(self.target.iterdir()), [])
+
+    def test_corrupt_manifest_blocks_install_before_writes(self):
+        manifest = self.target / 'skill-version.json'
+        for content in ('not json', json.dumps({'schema_version': 99}),
+                        json.dumps({'schema_version': 1, 'repository': 'owner/repo',
+                                    'channel': 'main', 'commit': None, 'version': None,
+                                    'source_dirty': False, 'files': {'../outside': '0' * 64}})):
+            with self.subTest(content=content):
+                manifest.write_text(content)
+                result = self.install('--init-wiki')
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [manifest])
+                self.assertEqual(manifest.read_text(), content)
+
+    def test_unsafe_or_mistyped_manifest_fields_are_rejected_before_writes(self):
+        valid = {'schema_version': 1, 'repository': 'mesilov/pdlc-llm-wiki4sdlc-skill',
+                 'channel': 'main', 'commit': None, 'version': None,
+                 'source_dirty': False, 'files': {'bin/wiki/lint': '0' * 64}}
+        cases = [('schema_version', True), ('repository', 7), ('channel', 'dev'),
+                 ('commit', 'v1.0.0'), ('version', 5), ('source_dirty', 'false'),
+                 ('files', []), ('files', {'bin/wiki/lint': 'bad hash'}),
+                 ('files', {'wiki.config.json': '0' * 64}),
+                 ('files', {'.agents/skills/other/SKILL.md': '0' * 64}),
+                 ('files', {'bin/wiki/../../outside': '0' * 64}),
+                 ('files', {'bin/wiki//lint': '0' * 64}),
+                 ('files', {'bin/wiki/__pycache__/cache.pyc': '0' * 64}),
+                 ('modes', []), ('modes', {}),
+                 ('modes', {'bin/wiki/lint': True}),
+                 ('modes', {'bin/wiki/lint': -1}),
+                 ('modes', {'bin/wiki/lint': 0o10000}),
+                 ('modes', {'bin/wiki/other': 0o755})]
+        manifest = self.target / 'skill-version.json'
+        for field, value in cases:
+            with self.subTest(field=field, value=value):
+                content = json.dumps(dict(valid, **{field: value}))
+                manifest.write_text(content)
+                result = self.install('--init-wiki')
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [manifest])
+                self.assertEqual(manifest.read_text(), content)
+
+    def test_symlink_manifest_blocks_install_before_writes(self):
+        outside = Path(self.temp.name) / 'outside.json'
+        outside.write_text('local file\n')
+        manifest = self.target / 'skill-version.json'
+        manifest.symlink_to(outside)
+        result = self.install('--init-wiki')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(list(self.target.iterdir()), [manifest])
+        self.assertEqual(outside.read_text(), 'local file\n')
+
+    def test_symlink_source_is_rejected_before_any_write(self):
+        kit = self.copy_kit()
+        original = kit / 'skills/wiki-query/SKILL.md'
+        outside = Path(self.temp.name) / 'outside-source.md'
+        outside.write_bytes(original.read_bytes())
+        original.unlink()
+        original.symlink_to(outside)
+        result = self.install('--init-wiki', kit=kit)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(list(self.target.iterdir()), [])
+
     def test_dry_run_does_not_write(self):
         result = self.install('--init-wiki', '--dry-run')
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(list(self.target.iterdir()), [])
         self.assertIn('wiki-query/SKILL.md', result.stdout)
+
+    def test_init_raw_categories_and_guides(self):
+        result = self.install('--init-wiki', '--agent', 'codex')
+        self.assertEqual(result.returncode, 0, result.stderr)
+        profile = json.loads((self.target / 'wiki.config.json').read_text())
+        self.assertEqual(profile.get('raw_categories'), ['sources', 'research'])
+        self.assertEqual(sorted(p.name for p in (self.target / 'raw').iterdir()),
+                         ['README.md', 'research', 'sources'])
+        for category in profile['raw_categories']:
+            guide = Path('raw') / category / 'README.md'
+            self.assertEqual((self.target / guide).read_bytes(),
+                             (ROOT / 'templates/wiki' / guide).read_bytes())
+        self.assertFalse((self.target / '.agents/skills/pdlc-wiki-maintainer').exists())
+
+    def test_missing_raw_resources_are_rejected_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete raw kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        for name in ('bin/wiki/raw-lint', 'bin/wiki/_raw.py', 'bin/wiki/_okf.py', 'bin/wiki/requirements.txt',
+                     'skills/wiki-query/references/raw.md',
+                     'templates/wiki/raw/sources/README.md', 'templates/wiki/raw/research/README.md'):
+            with self.subTest(resource=name):
+                path = kit / name
+                contents = path.read_bytes()
+                path.unlink()
+                result = self.install('--init-wiki', kit=kit)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('Неполный комплект', result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [])
+                path.write_bytes(contents)
+
+    def test_installed_raw_lint_is_read_only_on_first_run(self):
+        from tests.wiki_harness.test_raw import HEADER
+
+        self.assertEqual(self.install('--init-wiki', '--agent', 'codex').returncode, 0)
+        unit = self.target / 'raw/sources/api/2026-10-09-reference'
+        unit.mkdir(parents=True)
+        (unit / 'README.md').write_text(HEADER)
+        (unit / 'original.md').write_text('# Original without frontmatter\n')
+        before = {p.relative_to(self.target): p.read_bytes() for p in self.target.rglob('*') if p.is_file()}
+        result = subprocess.run([sys.executable, str(self.target / 'bin/wiki/raw-lint'), '--json'],
+                                cwd=self.target, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['summary']['checked'], 1)
+        after = {p.relative_to(self.target): p.read_bytes() for p in self.target.rglob('*') if p.is_file()}
+        self.assertEqual(before, after)
 
     def test_init_and_all_commands_without_openspec(self):
         result = self.install('--init-wiki', '--claude')
@@ -96,6 +385,19 @@ class InstallTest(unittest.TestCase):
         self.assertFalse((self.target / '.agents').exists())
         self.assertFalse((self.target / 'knowledge').exists())
         self.assertEqual((self.target / 'AGENTS.md').read_text(), 'local policy\n')
+
+    def test_matching_file_with_different_mode_blocks_install_before_any_write(self):
+        entry = self.target / 'bin/wiki/status'
+        entry.parent.mkdir(parents=True)
+        entry.write_bytes((ROOT / 'bin/wiki/status').read_bytes())
+        entry.chmod(0o600)
+        result = self.install('--init-wiki')
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn('Конфликт', result.stderr)
+        self.assertEqual(entry.stat().st_mode & 0o7777, 0o600)
+        self.assertFalse((self.target / 'skill-version.json').exists())
+        self.assertFalse((self.target / '.agents').exists())
+        self.assertFalse((self.target / 'knowledge').exists())
 
     def test_refuses_symlink_destination_without_writing_outside(self):
         outside = Path(self.temp.name) / 'outside'
@@ -207,6 +509,7 @@ class InstallTest(unittest.TestCase):
         for directory in ('scripts', 'skills', 'bin', 'templates'):
             shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
         for name in ('bin/wiki/_core.py', 'bin/wiki/lint',
+                     'bin/wiki/_update.py', 'bin/wiki/update',
                      'skills/wiki-query/references/contract.md',
                      'skills/wiki-query/references/profile.md',
                      'templates/wiki/knowledge/SCHEMA.md'):
@@ -227,6 +530,7 @@ class InstallTest(unittest.TestCase):
         doctor = self.target / 'bin/wiki/doctor'
         self.assertTrue(os.access(doctor, os.X_OK))
         self.assertTrue((self.target / 'bin/wiki/_doctor.py').is_file())
+        self.assertTrue((self.target / 'bin/wiki/_forge.py').is_file())
         before = {p: (p.read_bytes(), p.stat().st_mtime_ns)
                   for p in self.target.rglob('*') if p.is_file()}
         env = {**os.environ, 'HOME': str(self.target.parent / 'empty-home'),
@@ -236,6 +540,9 @@ class InstallTest(unittest.TestCase):
                                 cwd=self.target, env=env, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertEqual(json.loads(result.stdout)['exit_code'], 0)
+        checks = {check['id']: check for check in json.loads(result.stdout)['checks']}
+        self.assertEqual(checks['forge.target']['status'], 'warning')
+        self.assertEqual(checks['forge.write']['status'], 'skipped')
         after = {p: (p.read_bytes(), p.stat().st_mtime_ns)
                  for p in self.target.rglob('*') if p.is_file()}
         self.assertEqual(before, after)
@@ -244,13 +551,14 @@ class InstallTest(unittest.TestCase):
         kit = Path(self.temp.name) / 'incomplete doctor kit'
         for directory in ('scripts', 'skills', 'bin', 'templates'):
             shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
-        for name in ('bin/wiki/doctor', 'bin/wiki/_doctor.py'):
+        for name in ('bin/wiki/doctor', 'bin/wiki/_doctor.py', 'bin/wiki/_forge.py'):
             with self.subTest(resource=name):
                 path = kit / name
-                original = path.read_bytes()
-                path.unlink()
+                original = path.read_bytes() if path.exists() else None
+                path.unlink(missing_ok=True)
                 result = self.install('--init-wiki', kit=kit)
                 self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
                 self.assertIn('Неполный комплект', result.stderr)
                 self.assertEqual(list(self.target.iterdir()), [])
-                path.write_bytes(original)
+                if original is not None:
+                    path.write_bytes(original)
