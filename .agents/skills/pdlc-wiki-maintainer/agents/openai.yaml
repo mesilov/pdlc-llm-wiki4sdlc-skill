@@ -1,0 +1,4 @@
+interface:
+  display_name: "PDLC Wiki Maintainer"
+  short_description: "Изменения, ревью и релизы wiki-набора в GitHub"
+  default_prompt: "Используй $pdlc-wiki-maintainer для обслуживания этого репозитория по его жизненному циклу изменений и релизов."
