@@ -61,7 +61,7 @@ def required_resources():
         'evals/utr_lint.py', 'evals/md_blocks.py', 'LICENSE', 'manifest.json'))
     required.extend(Path('bin/wiki') / name for name in (
         '_core.py', '_trace.py', '_doctor.py', '_forge.py', 'lint', 'status', 'find-orphans', 'affected', 'trace', 'doctor',
-        '_kit.py', '_update.py', 'update'))
+        '_kit.py', '_update.py', 'update', '_okf.py', '_raw.py', 'raw-lint', 'requirements.txt'))
     return required
 
 
