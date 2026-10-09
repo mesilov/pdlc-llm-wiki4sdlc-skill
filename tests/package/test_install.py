@@ -219,3 +219,38 @@ class InstallTest(unittest.TestCase):
                 self.assertIn('Неполный комплект', result.stderr)
                 self.assertEqual(list(self.target.iterdir()), [])
                 path.write_bytes(original)
+
+    def test_doctor_is_installed_executable_and_read_only(self):
+        import os
+
+        self.assertEqual(self.install('--init-wiki').returncode, 0)
+        doctor = self.target / 'bin/wiki/doctor'
+        self.assertTrue(os.access(doctor, os.X_OK))
+        self.assertTrue((self.target / 'bin/wiki/_doctor.py').is_file())
+        before = {p: (p.read_bytes(), p.stat().st_mtime_ns)
+                  for p in self.target.rglob('*') if p.is_file()}
+        env = {**os.environ, 'HOME': str(self.target.parent / 'empty-home'),
+               'CODEX_HOME': str(self.target.parent / 'empty-codex'),
+               'XDG_CONFIG_HOME': str(self.target.parent / 'empty-config'), 'PATH': ''}
+        result = subprocess.run([sys.executable, str(doctor), '--json'],
+                                cwd=self.target, env=env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(json.loads(result.stdout)['exit_code'], 0)
+        after = {p: (p.read_bytes(), p.stat().st_mtime_ns)
+                 for p in self.target.rglob('*') if p.is_file()}
+        self.assertEqual(before, after)
+
+    def test_missing_doctor_files_block_install_before_any_write(self):
+        kit = Path(self.temp.name) / 'incomplete doctor kit'
+        for directory in ('scripts', 'skills', 'bin', 'templates'):
+            shutil.copytree(ROOT / directory, kit / directory, ignore=shutil.ignore_patterns('__pycache__'))
+        for name in ('bin/wiki/doctor', 'bin/wiki/_doctor.py'):
+            with self.subTest(resource=name):
+                path = kit / name
+                original = path.read_bytes()
+                path.unlink()
+                result = self.install('--init-wiki', kit=kit)
+                self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+                self.assertIn('Неполный комплект', result.stderr)
+                self.assertEqual(list(self.target.iterdir()), [])
+                path.write_bytes(original)
