@@ -284,3 +284,22 @@ class DoctorTest(WikiCliTestCase):
                                  ["openspec.skills.codex"]["status"], "error")
         self.skill(self.root / ".agents/skills", text='---\nname: openspec-explore\ndescription: "123"\n---\nBody\n')
         self.assertEqual(self.report("--tools", "codex")["openspec.skills.codex"]["status"], "ok")
+
+    def test_relative_path_cli_works_from_nested_directory(self):
+        self.ready()
+        self.env["PATH"] = "../../tools"
+        checks = self.report("--tools", "codex", cwd=self.root / "knowledge")
+        self.assertEqual(checks["openspec.cli"]["version"], "1.14.1")
+        self.assertTrue(Path(checks["openspec.cli"]["path"]).is_absolute())
+        self.assertEqual(Path(checks["openspec.cli"]["path"]).resolve(), (self.tools / "openspec").resolve())
+
+    def test_project_argument_never_runs_different_relative_path_executable(self):
+        self.ready()
+        other = self.root / "tools/openspec"
+        other.parent.mkdir()
+        other.write_text(f"#!{sys.executable}\nprint('9.9.9')\n")
+        other.chmod(0o755)
+        self.env["PATH"] = "tools"
+        checks = self.report("--project", str(self.root), "--tools", "codex", cwd=self.root.parent)
+        self.assertEqual(checks["openspec.cli"]["version"], "1.14.1")
+        self.assertEqual(Path(checks["openspec.cli"]["path"]).resolve(), (self.tools / "openspec").resolve())

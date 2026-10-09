@@ -127,6 +127,8 @@ checkout сообщается как проблема. Пользователь�
 не фиксируются: разные OpenSpec profiles устанавливают разные навыки.
 CLI должен находиться в PATH и вернуть версию через `openspec --version`
 за `--timeout` секунд (default 5); вызов выполняется без shell.
+Найденный путь executable становится абсолютным до смены cwd на project root,
+поэтому относительные элементы PATH сохраняют смысл каталога запуска.
 
 Без `openspec_root` проблемы CLI/skills — warnings. При подключённом
 OpenSpec или `--require-openspec` это errors для каждого выбранного агента.

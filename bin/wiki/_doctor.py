@@ -102,6 +102,8 @@ def check_cli(root, checks, severity, timeout):
     if executable is None:
         add(checks, "openspec.cli", severity, "OpenSpec CLI не найден в PATH", remedy=remedy)
         return
+    # which() interprets relative PATH entries in the caller's cwd, before run() changes it.
+    executable = str(Path(executable).absolute())
     try:
         result = subprocess.run([executable, "--version"], cwd=root,
                                 stdin=subprocess.DEVNULL, capture_output=True, text=True,
