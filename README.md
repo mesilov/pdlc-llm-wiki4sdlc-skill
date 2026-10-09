@@ -122,11 +122,33 @@ OpenSpec выключен: `openspec_root: null`.
 Из корня целевого проекта запустите команды:
 
 ```bash
+bin/wiki/doctor
 bin/wiki/lint --dry-run
 bin/wiki/status
 bin/wiki/find-orphans
 bin/wiki/affected 'понятие или путь'
 ```
+
+`doctor` проверяет пути профиля, доступность `openspec --version` и OpenSpec
+skills для Codex, Claude Code и OpenCode. Он показывает найденные пути и
+подсказки, ничего не устанавливает и не исправляет.
+
+```bash
+bin/wiki/doctor --require-openspec --tools codex,claude,opencode
+bin/wiki/doctor --project /path/to/project --json
+```
+
+Без подключения OpenSpec отсутствие CLI/skills даёт предупреждение.
+При заданном `openspec_root` либо `--require-openspec` это ошибка;
+строгий режим также требует подключённый каталог.
+`--tools codex` ограничивает проверку одним агентом; `--timeout 5` задаёт
+таймаут запуска CLI в секундах. Коды doctor: 0 — без ошибок, 1 — проблемы
+готовности, 2 — неверный вызов, корень или профиль. Warnings допускают код 0.
+
+Область проверки и каталоги skills описаны в
+[профиле](skills/wiki-query/references/profile.md#самодиагностика).
+Наличие файлов skills не подтверждает их загрузку и разрешения активной
+сессии или полноту workflow profile.
 
 При подключении OpenSpec запустите трассировку:
 

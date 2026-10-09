@@ -196,7 +196,7 @@ def wiki_layout(root: Path) -> WikiLayout:
     return WikiLayout(corpus, raw, knowledge, openspec, *mappings, scan_files, decision_pattern, sort, views)
 
 
-def discover_repository(start: Path | None = None) -> Path:
+def discover_repository(start: Path | None = None, *, validate: bool = True) -> Path:
     current = (start or Path.cwd()).absolute()
     if current.is_file():
         current = current.parent
@@ -204,11 +204,13 @@ def discover_repository(start: Path | None = None) -> Path:
     # Граница Git/config имеет приоритет над вложенными raw/knowledge.
     for candidate in candidates:
         if (candidate / ".git").exists() or (candidate / "wiki.config.json").exists():
-            wiki_layout(candidate)
+            if validate:
+                wiki_layout(candidate)
             return candidate
     for candidate in candidates:
         if (candidate / "knowledge").is_dir() and (candidate / "raw").is_dir():
-            wiki_layout(candidate)
+            if validate:
+                wiki_layout(candidate)
             return candidate
     raise WikiError("не найден корень wiki repository; запустите команду из checkout")
 
