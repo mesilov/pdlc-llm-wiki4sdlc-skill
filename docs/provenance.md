@@ -149,3 +149,19 @@ OKF связывает утверждения со сносками по ID ис
 Профиль, начальный корпус, зависимости и CLI-проверки не изменены.
 Установщик включает новый общий справочник и отклоняет неполный комплект до записи.
 Совместимость корпуса с OKF и выполнение расчётов эта работа не подтверждает.
+
+## Самодиагностика OpenSpec — 2026-10-09
+
+`bin/wiki/doctor` использует общий валидатор путей wiki и проверяет
+OpenSpec CLI и файлы skills без установки или исправлений.
+Пути Codex/Claude Code/OpenCode сверены с OpenSpec CLI 1.14.1 и
+[OpenSpec Supported Tools](https://github.com/Fission-AI/OpenSpec/blob/main/docs/supported-tools.md);
+shared и пользовательские каталоги OpenCode — с
+[OpenCode Agent Skills](https://opencode.ai/docs/skills/).
+Новый путь Codex `.agents/skills` и legacy `.codex/skills` проверяются отдельно.
+
+Не заимствованы генератор skills, YAML-парсер, workflow profiles и
+настройки разрешений агентов. Минимальная проверка заголовков SKILL.md
+подтверждает читаемость файла и наличие name/description, но не заменяет
+проверку YAML, загрузки/разрешений агента, полноты профиля или смысла навыка.
+Разные workflows и delivery settings не сводятся к фиксированному числу файлов.
