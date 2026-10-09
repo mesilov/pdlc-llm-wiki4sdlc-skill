@@ -71,5 +71,9 @@
   whitespace для новых файлов, временную установку и installed CLI.
 - [x] Пройти независимый code review, исправить actionable замечания, повторить
   затронутые проверки.
-- [ ] Staged scope/check; commit, push и PR в dev, milestone 0.1.0.
+- [x] Staged scope/check; commit, push и PR в dev, milestone 0.1.0.
   Связать issue #7, приложить PR к текущему чату. Не выполнять merge/release.
+
+Поставка: [PR #15](https://github.com/mesilov/pdlc-llm-wiki4sdlc-skill/pull/15)
+в `dev`, milestone `0.1.0`, явно связан с issue #7 и приложен к чату.
+Результаты проверок: [skill-validation.md](../../skill-validation.md#обновление-установленного-комплекта--2026-10-09).
